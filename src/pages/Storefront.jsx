@@ -226,7 +226,6 @@ export default function Storefront() {
                 <MessageSquare size={24} />
               </div>
               <span className="contact-card-title">WhatsApp Support</span>
-              <span className="contact-card-value">9869468143</span>
             </div>
 
             <div className="contact-card" onClick={() => handleContactAction('call')}>
@@ -234,7 +233,6 @@ export default function Storefront() {
                 <PhoneCall size={24} />
               </div>
               <span className="contact-card-title">Call Us Direct</span>
-              <span className="contact-card-value">9869468143</span>
             </div>
 
             <div className="contact-card" onClick={() => handleContactAction('email')}>
@@ -242,7 +240,6 @@ export default function Storefront() {
                 <Mail size={24} />
               </div>
               <span className="contact-card-title">Email Inquiry</span>
-              <span className="contact-card-value" style={{ fontSize: '0.85rem' }}>bagscovers1978@gmail.com</span>
             </div>
 
             <div className="contact-card" onClick={() => handleContactAction('map')}>
