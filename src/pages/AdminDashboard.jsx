@@ -176,9 +176,8 @@ export default function AdminDashboard() {
     setProductMode('edit');
   };
 
-  const handleProductSubmit = async (e) => {
+  const handleProductSubmit = (e) => {
     e.preventDefault();
-    setIsSaving(true);
     const parsedPrice = parseFloat(productForm.price) || 0;
     
     // Set first image in imageUrl for backward compatibility
@@ -188,22 +187,16 @@ export default function AdminDashboard() {
       imageUrl: productForm.imageUrls[0] || ''
     };
 
-    try {
-      if (productMode === 'add') {
-        await addProduct(finalForm);
-      } else if (productMode === 'edit' && editingProduct) {
-        await updateProduct({
-          ...finalForm,
-          id: editingProduct.id
-        });
-      }
-      setProductMode('list');
-      setEditingProduct(null);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSaving(false);
+    if (productMode === 'add') {
+      addProduct(finalForm);
+    } else if (productMode === 'edit' && editingProduct) {
+      updateProduct({
+        ...finalForm,
+        id: editingProduct.id
+      });
     }
+    setProductMode('list');
+    setEditingProduct(null);
   };
 
   // Toggle quick in-stock status

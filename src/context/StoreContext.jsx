@@ -104,8 +104,8 @@ const showToast = (message) => {
   }, 4500);
 };
 
-// Cloud helper — PUT a single key (with retry)
-const cloudPut = async (key, data, retries = 2) => {
+// Cloud helper — PUT a single key (with retry, longer backoff)
+const cloudPut = async (key, data, retries = 3) => {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(`${DB_BASE_URL}/${key}`, {
@@ -114,9 +114,13 @@ const cloudPut = async (key, data, retries = 2) => {
         body: JSON.stringify(data)
       });
       if (res.ok) return true;
-      if (attempt < retries) await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+      if (attempt < retries) await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
     } catch (err) {
-      if (attempt === retries) console.error(`Cloud PUT /${key} failed:`, err);
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+      } else {
+        console.error(`Cloud PUT /${key} failed:`, err);
+      }
     }
   }
   return false;
@@ -283,61 +287,62 @@ export const StoreProvider = ({ children }) => {
   }, []);
 
   // ──────────────────────────────────────────────
-  // Product CRUD
+  // Product CRUD — instant local save, background cloud sync
   // ──────────────────────────────────────────────
 
-  const addProduct = async (product) => {
+  const addProduct = (product) => {
     const newProduct = {
       ...product,
       id: `prod-${Date.now()}`
     };
 
-    // Immediately update state + localStorage
-    const updatedList = await new Promise(resolve => {
-      setProducts(prev => {
-        const next = [newProduct, ...prev];
-        resolve(next);
-        return next;
-      });
+    // Instant state + localStorage update
+    let updatedList;
+    setProducts(prev => {
+      updatedList = [newProduct, ...prev];
+      return updatedList;
     });
+    showToast('✓ Product saved!');
 
-    // Sync to cloud: save individual product + update index
-    const saved = await saveProductToCloud(newProduct);
-    if (saved) {
-      await saveProductIndex(updatedList);
-      showToast('✓ Product saved!');
-    } else {
-      showToast('⚠ Saved locally. Cloud sync failed.');
-    }
-    return saved;
+    // Background cloud sync (fire-and-forget)
+    setTimeout(() => {
+      saveProductToCloud(newProduct).then(() => {
+        saveProductIndex(updatedList);
+      });
+    }, 100);
+
+    return true;
   };
 
-  const updateProduct = async (updatedProduct) => {
-    const updatedList = await new Promise(resolve => {
-      setProducts(prev => {
-        const next = prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
-        resolve(next);
-        return next;
-      });
-    });
+  const updateProduct = (updatedProduct) => {
+    // Instant state update
+    setProducts(prev =>
+      prev.map(p => p.id === updatedProduct.id ? updatedProduct : p)
+    );
 
-    const saved = await saveProductToCloud(updatedProduct);
-    if (saved) showToast('✓ Product updated!');
-    return saved;
+    // Background cloud sync
+    setTimeout(() => {
+      saveProductToCloud(updatedProduct);
+    }, 100);
+
+    return true;
   };
 
-  const deleteProduct = async (id) => {
-    const updatedList = await new Promise(resolve => {
-      setProducts(prev => {
-        const next = prev.filter(p => p.id !== id);
-        resolve(next);
-        return next;
-      });
+  const deleteProduct = (id) => {
+    let updatedList;
+    setProducts(prev => {
+      updatedList = prev.filter(p => p.id !== id);
+      return updatedList;
     });
-
-    await removeProductFromCloud(id);
-    await saveProductIndex(updatedList);
     showToast('✓ Product deleted.');
+
+    // Background cloud sync
+    setTimeout(() => {
+      removeProductFromCloud(id).then(() => {
+        saveProductIndex(updatedList);
+      });
+    }, 100);
+
     return true;
   };
 
