@@ -2,6 +2,8 @@ import React, { createContext, useState, useEffect } from 'react';
 
 export const StoreContext = createContext();
 
+const DB_BASE_URL = 'https://pik-bags-default-rtdb.firebaseio.com';
+
 const DEFAULT_CATEGORIES = [
   'Tote Bags',
   'Laptop Sleeves',
@@ -77,7 +79,7 @@ const DEFAULT_PRODUCTS = [
 
 const DEFAULT_SETTINGS = {
   storeName: 'PIK Bags & Covers',
-  whatsappNumber: '+919876543210',
+  whatsappNumber: '9869468143', // Default set to customer requirements
   currency: '₹',
   tagline: 'Custom Protection & Tailored Packaging',
   description: 'We design and manufacture premium, heavy-duty covers, travel bags, and protective sleeves. Tailored to your specifications using superior quality fabrics for ultimate durability.',
@@ -86,7 +88,7 @@ const DEFAULT_SETTINGS = {
 };
 
 export const StoreProvider = ({ children }) => {
-  // Load state from localStorage or use defaults
+  // Read local cache initially
   const [categories, setCategories] = useState(() => {
     const saved = localStorage.getItem('pik_categories');
     return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
@@ -106,7 +108,9 @@ export const StoreProvider = ({ children }) => {
     return sessionStorage.getItem('pik_admin_logged') === 'true';
   });
 
-  // Sync state to localStorage whenever it changes
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Sync state to local storage when state changes locally
   useEffect(() => {
     localStorage.setItem('pik_categories', JSON.stringify(categories));
   }, [categories]);
@@ -119,30 +123,106 @@ export const StoreProvider = ({ children }) => {
     localStorage.setItem('pik_settings', JSON.stringify(settings));
   }, [settings]);
 
-  // Product CRUD
+  // Load from Cloud Database on mount
+  useEffect(() => {
+    const loadCloudData = async () => {
+      setIsSyncing(true);
+      try {
+        // 1. Fetch categories
+        const catRes = await fetch(`${DB_BASE_URL}/categories.json`);
+        const catData = await catRes.json();
+        if (catData) {
+          setCategories(catData);
+        } else {
+          // Initialize DB if empty
+          await fetch(`${DB_BASE_URL}/categories.json`, {
+            method: 'PUT',
+            body: JSON.stringify(DEFAULT_CATEGORIES)
+          });
+        }
+
+        // 2. Fetch settings
+        const setRes = await fetch(`${DB_BASE_URL}/settings.json`);
+        const setData = await setRes.json();
+        if (setData) {
+          setSettings(setData);
+        } else {
+          // Initialize DB if empty
+          await fetch(`${DB_BASE_URL}/settings.json`, {
+            method: 'PUT',
+            body: JSON.stringify(DEFAULT_SETTINGS)
+          });
+        }
+
+        // 3. Fetch products
+        const prodRes = await fetch(`${DB_BASE_URL}/products.json`);
+        const prodData = await prodRes.json();
+        if (prodData) {
+          // Firebase returns objects or arrays. If it was created as array, it will return array, but if index keys were modified, it might return object. Let's normalize it to array.
+          const normalizedProds = Array.isArray(prodData) 
+            ? prodData.filter(Boolean) 
+            : Object.values(prodData);
+          setProducts(normalizedProds);
+        } else {
+          // Initialize DB if empty
+          await fetch(`${DB_BASE_URL}/products.json`, {
+            method: 'PUT',
+            body: JSON.stringify(DEFAULT_PRODUCTS)
+          });
+        }
+      } catch (err) {
+        console.warn('Unable to sync with cloud database. Running in offline/cache mode:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    loadCloudData();
+  }, []);
+
+  // Helper helper to write to cloud database
+  const syncToCloud = async (path, data) => {
+    try {
+      await fetch(`${DB_BASE_URL}/${path}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch (err) {
+      console.error(`Failed to sync changes to cloud path /${path}:`, err);
+    }
+  };
+
+  // Product CRUD (with Cloud Sync)
   const addProduct = (product) => {
     const newProduct = {
       ...product,
       id: `prod-${Date.now()}`
     };
-    setProducts(prev => [newProduct, ...prev]);
+    const updated = [newProduct, ...products];
+    setProducts(updated);
+    syncToCloud('products', updated);
   };
 
   const updateProduct = (updatedProduct) => {
-    setProducts(prev =>
-      prev.map(p => p.id === updatedProduct.id ? updatedProduct : p)
-    );
+    const updated = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+    setProducts(updated);
+    syncToCloud('products', updated);
   };
 
   const deleteProduct = (id) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+    const updated = products.filter(p => p.id !== id);
+    setProducts(updated);
+    syncToCloud('products', updated);
   };
 
-  // Category CRUD
+  // Category CRUD (with Cloud Sync)
   const addCategory = (categoryName) => {
     const cleanedName = categoryName.trim();
     if (cleanedName && !categories.includes(cleanedName)) {
-      setCategories(prev => [...prev, cleanedName]);
+      const updated = [...categories, cleanedName];
+      setCategories(updated);
+      syncToCloud('categories', updated);
     }
   };
 
@@ -150,30 +230,34 @@ export const StoreProvider = ({ children }) => {
     const cleanedNewName = newName.trim();
     if (!cleanedNewName || oldName === cleanedNewName) return;
 
-    setCategories(prev =>
-      prev.map(cat => cat === oldName ? cleanedNewName : cat)
-    );
+    const updatedCats = categories.map(cat => cat === oldName ? cleanedNewName : cat);
+    setCategories(updatedCats);
+    syncToCloud('categories', updatedCats);
 
-    // Update the category inside all products belonging to the old category
-    setProducts(prev =>
-      prev.map(prod => prod.category === oldName ? { ...prod, category: cleanedNewName } : prod)
-    );
+    const updatedProds = products.map(prod => prod.category === oldName ? { ...prod, category: cleanedNewName } : prod);
+    setProducts(updatedProds);
+    syncToCloud('products', updatedProds);
   };
 
   const deleteCategory = (categoryName) => {
-    setCategories(prev => prev.filter(cat => cat !== categoryName));
+    const updatedCats = categories.filter(cat => cat !== categoryName);
+    setCategories(updatedCats);
+    syncToCloud('categories', updatedCats);
+
     // Re-assign products in this category to first category
-    setProducts(prev =>
-      prev.map(prod => prod.category === categoryName ? { ...prod, category: categories[0] || 'Uncategorized' } : prod)
-    );
+    const updatedProds = products.map(prod => prod.category === categoryName ? { ...prod, category: categories[0] || 'Uncategorized' } : prod);
+    setProducts(updatedProds);
+    syncToCloud('products', updatedProds);
   };
 
-  // Settings update
+  // Settings update (with Cloud Sync)
   const updateSettings = (newSettings) => {
-    setSettings(prev => ({
-      ...prev,
+    const updated = {
+      ...settings,
       ...newSettings
-    }));
+    };
+    setSettings(updated);
+    syncToCloud('settings', updated);
   };
 
   // Admin Login/Logout
@@ -210,6 +294,7 @@ export const StoreProvider = ({ children }) => {
       products,
       settings,
       isAdminLoggedIn,
+      isSyncing,
       addProduct,
       updateProduct,
       deleteProduct,
