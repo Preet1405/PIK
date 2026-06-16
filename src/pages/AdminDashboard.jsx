@@ -45,47 +45,49 @@ export default function AdminDashboard() {
   // Image input option: 'upload' | 'url'
   const [imageOption, setImageOption] = useState('upload');
 
-  // Local helper to read and compress file uploads
+  // Local helper to read and compress file uploads (supports multiple)
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        const maxDimension = 800; // Limit base64 length to save LocalStorage size
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDimension = 800; // Limit base64 length to save LocalStorage size
 
-        if (width > height) {
-          if (width > maxDimension) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
+          if (width > height) {
+            if (width > maxDimension) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            }
+          } else {
+            if (height > maxDimension) {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
           }
-        } else {
-          if (height > maxDimension) {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
 
-        canvas.width = width;
-        canvas.height = height;
+          canvas.width = width;
+          canvas.height = height;
 
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
 
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
-        setProductForm(prev => ({
-          ...prev,
-          imageUrl: compressedDataUrl
-        }));
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+          setProductForm(prev => ({
+            ...prev,
+            imageUrls: [...prev.imageUrls, compressedDataUrl]
+          }));
+        };
+        img.src = event.target.result;
       };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(file);
+    });
   };
 
   // Forms States
@@ -95,6 +97,7 @@ export default function AdminDashboard() {
     price: '',
     category: '',
     imageUrl: '',
+    imageUrls: [],
     inStock: true
   });
 
@@ -140,6 +143,7 @@ export default function AdminDashboard() {
       price: '',
       category: categories[0] || 'Uncategorized',
       imageUrl: '',
+      imageUrls: [],
       inStock: true
     });
     setImageOption('upload');
@@ -148,17 +152,20 @@ export default function AdminDashboard() {
 
   const handleOpenEditProduct = (prod) => {
     setEditingProduct(prod);
+    const resolvedUrls = prod.imageUrls || (prod.imageUrl ? [prod.imageUrl] : []);
     setProductForm({
       name: prod.name,
       description: prod.description,
       price: prod.price,
       category: prod.category,
-      imageUrl: prod.imageUrl,
+      imageUrl: prod.imageUrl || '',
+      imageUrls: resolvedUrls,
       inStock: prod.inStock
     });
     
     // Auto-detect if image is custom uploaded or web URL
-    if (prod.imageUrl && (prod.imageUrl.startsWith('http') || prod.imageUrl.startsWith('//'))) {
+    const mainImg = resolvedUrls[0] || '';
+    if (mainImg && (mainImg.startsWith('http') || mainImg.startsWith('//'))) {
       setImageOption('url');
     } else {
       setImageOption('upload');
@@ -169,9 +176,12 @@ export default function AdminDashboard() {
   const handleProductSubmit = (e) => {
     e.preventDefault();
     const parsedPrice = parseFloat(productForm.price) || 0;
+    
+    // Set first image in imageUrl for backward compatibility
     const finalForm = {
       ...productForm,
-      price: parsedPrice
+      price: parsedPrice,
+      imageUrl: productForm.imageUrls[0] || ''
     };
 
     if (productMode === 'add') {
@@ -480,47 +490,98 @@ export default function AdminDashboard() {
                           <UploadCloud className="upload-dropzone-icon" size={32} />
                           <div>
                             <p style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)' }}>Click to browse your gallery</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>PNG, JPG or JPEG up to 5MB</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>PNG, JPG or JPEG up to 5MB (Select multiple)</p>
                           </div>
                           <input
                             type="file"
                             accept="image/*"
                             onChange={handleImageUpload}
                             className="hidden-file-input"
+                            multiple
                           />
                         </label>
                       </div>
                     ) : (
-                      <div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <input
                           type="url"
-                          value={productForm.imageUrl.startsWith('data:') ? '' : productForm.imageUrl}
-                          onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
+                          id="webImageUrlInput"
                           placeholder="https://images.unsplash.com/photo-..."
                           className="form-control"
+                          style={{ marginBottom: 0 }}
                         />
-                        <p className="form-hint">Paste an image link from Google, Unsplash, or any photo hosting site.</p>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          style={{ whiteSpace: 'nowrap', padding: '0 1.25rem' }}
+                          onClick={() => {
+                            const input = document.getElementById('webImageUrlInput');
+                            const val = input ? input.value.trim() : '';
+                            if (val) {
+                              setProductForm(prev => ({
+                                ...prev,
+                                imageUrls: [...prev.imageUrls, val]
+                              }));
+                              input.value = '';
+                            }
+                          }}
+                        >
+                          Add URL
+                        </button>
                       </div>
                     )}
 
-                    {/* Image Preview */}
-                    {productForm.imageUrl && (
-                      <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-primary)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                        <img
-                          src={productForm.imageUrl}
-                          alt="Preview"
-                          style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }}
-                        />
-                        <div>
-                          <span style={{ fontSize: '0.8rem', fontWeight: '500', color: 'var(--text-secondary)' }}>Selected Image Preview</span>
-                          <button
-                            type="button"
-                            className="btn"
-                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', marginTop: '0.25rem', display: 'block', width: 'auto' }}
-                            onClick={() => setProductForm(prev => ({ ...prev, imageUrl: '' }))}
-                          >
-                            Remove Image
-                          </button>
+                    {/* Image Previews */}
+                    {productForm.imageUrls && productForm.imageUrls.length > 0 && (
+                      <div style={{ marginTop: '1.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-primary)', display: 'block', marginBottom: '0.75rem' }}>
+                          Product Photos ({productForm.imageUrls.length}) - First photo is primary catalog image
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '0.75rem' }}>
+                          {productForm.imageUrls.map((url, idx) => (
+                            <div key={idx} style={{ position: 'relative', aspectRatio: '1/1', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                              <img
+                                src={url}
+                                alt={`Preview ${idx + 1}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                              <button
+                                type="button"
+                                style={{
+                                  position: 'absolute',
+                                  top: '2px',
+                                  right: '2px',
+                                  background: 'rgba(239, 68, 68, 0.9)',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '50%',
+                                  width: '20px',
+                                  height: '20px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  fontSize: '10px',
+                                  fontWeight: 'bold',
+                                  lineHeight: '1'
+                                }}
+                                onClick={() => {
+                                  setProductForm(prev => ({
+                                    ...prev,
+                                    imageUrls: prev.imageUrls.filter((_, i) => i !== idx)
+                                  }));
+                                }}
+                                title="Remove photo"
+                              >
+                                &times;
+                              </button>
+                              {idx === 0 && (
+                                <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(128, 44, 92, 0.85)', color: '#fff', fontSize: '8px', textAlign: 'center', padding: '2px 0', fontWeight: 'bold' }}>
+                                  Primary
+                                </span>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}

@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { StoreContext } from '../context/StoreContext';
 import Hero from '../components/Hero';
 import CategorySelector from '../components/CategorySelector';
@@ -21,6 +21,24 @@ export default function Storefront() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [priceSort, setPriceSort] = useState('default');
+
+  // Handle URL deep linking for products
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const productId = params.get('product');
+    if (productId && products.length > 0) {
+      const prod = products.find(p => p.id === productId);
+      if (prod) {
+        setSelectedProduct(prod);
+      }
+    }
+  }, [products]);
+
+  const handleCloseModal = () => {
+    setSelectedProduct(null);
+    const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+  };
 
   // Filter products
   const filteredProducts = products
@@ -195,7 +213,7 @@ export default function Storefront() {
       {selectedProduct && (
         <ProductModal
           product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
+          onClose={handleCloseModal}
         />
       )}
 

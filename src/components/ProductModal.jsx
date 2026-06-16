@@ -1,9 +1,10 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { StoreContext } from '../context/StoreContext';
 import { MessageSquare, X } from 'lucide-react';
 
 export default function ProductModal({ product, onClose }) {
   const { settings, orderProductViaWhatsapp } = useContext(StoreContext);
+  const [activeImgIndex, setActiveImgIndex] = useState(0);
 
   if (!product) return null;
 
@@ -13,6 +14,14 @@ export default function ProductModal({ product, onClose }) {
     }
   };
 
+  // Resolve multiple images with backward compatibility
+  const images = product.imageUrls && product.imageUrls.length > 0
+    ? product.imageUrls
+    : [product.imageUrl || 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&q=80&w=800'];
+
+  // Ensure index remains in bounds if images count changes
+  const activeImage = images[activeImgIndex] || images[0] || '';
+
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
       <div className="modal-content animate-scale">
@@ -21,12 +30,30 @@ export default function ProductModal({ product, onClose }) {
         </button>
 
         <div className="product-modal-grid">
-          <div className="product-modal-image-wrap">
-            <img
-              src={product.imageUrl || 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&q=80&w=800'}
-              alt={product.name}
-              className="product-modal-img"
-            />
+          <div className="product-modal-image-wrap" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, position: 'relative', aspectRatio: '1/1', background: 'var(--bg-tertiary)' }}>
+              <img
+                src={activeImage}
+                alt={product.name}
+                className="product-modal-img"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </div>
+            
+            {/* Clickable thumbnails list */}
+            {images.length > 1 && (
+              <div className="product-modal-thumbnails">
+                {images.map((imgUrl, idx) => (
+                  <img
+                    key={idx}
+                    src={imgUrl}
+                    alt={`${product.name} thumbnail ${idx + 1}`}
+                    className={`product-modal-thumbnail-img ${idx === activeImgIndex ? 'active' : ''}`}
+                    onClick={() => setActiveImgIndex(idx)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="product-modal-details">
