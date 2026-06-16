@@ -16,8 +16,6 @@ export default function Hero() {
   return (
     <section id="home" className="hero animate-fade">
       <img src={logoImg} alt={settings.storeName} className="hero-logo-large" />
-      <span className="hero-subtitle">{settings.tagline || 'Exquisite Collection'}</span>
-      <h1 className="hero-title">{settings.storeName || 'PIK Bags & Covers'}</h1>
       <p className="hero-desc">
         {settings.description || 
           'Browse our curated collection and order directly via WhatsApp for a personal shopping experience.'}

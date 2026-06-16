@@ -29,7 +29,6 @@ export default function Navbar({ currentView, onNavigate }) {
     <nav className="navbar">
       <div className="navbar-brand" onClick={(e) => handleMenuClick(e, 'home')}>
         <img src={logoImg} alt="PIK Logo" className="brand-logo-img" />
-        <span className="brand-name">{settings.storeName || 'PIK Bags & Covers'}</span>
       </div>
 
       <div className="navbar-menu">

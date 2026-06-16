@@ -8,8 +8,9 @@
   --accent-gold: #802c5c;             /* Brand logo deep purple */
   --accent-gold-rgb: 128, 44, 92;
   --accent-gold-hover: #9b3771;
-  --accent-coral: #e76f51;            /* Brand coral orange from screenshot */
-  --accent-coral-hover: #f4a261;      /* Highlight coral */
+  --accent-coral: #ad8b73;            /* Brand light brown */
+  --accent-coral-hover: #96745c;      /* Highlight light brown */
+  --accent-coral-rgb: 173, 139, 115;
   --accent-whatsapp: #25d366;
   --accent-whatsapp-hover: #20ba5a;
   
@@ -18,7 +19,7 @@
   --text-muted: #a3959c;              /* Soft gray labels */
   --border-color: rgba(128, 44, 92, 0.08); /* Subtle brand border */
   --border-gold: rgba(128, 44, 92, 0.2); 
-  --border-coral: rgba(231, 111, 81, 0.25);
+  --border-coral: rgba(var(--accent-coral-rgb), 0.25);
   --glass-bg: rgba(253, 250, 247, 0.85);
   --glass-border: rgba(128, 44, 92, 0.05);
   
@@ -36,7 +37,7 @@
   --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.02);
   --shadow-md: 0 10px 30px -15px rgba(128, 44, 92, 0.06);
   --shadow-lg: 0 20px 40px -20px rgba(128, 44, 92, 0.12);
-  --shadow-glow: 0 0 15px rgba(231, 111, 81, 0.15);
+  --shadow-glow: 0 0 15px rgba(var(--accent-coral-rgb), 0.15);
 }
 
 /* Global Reset */
@@ -207,13 +208,13 @@ main {
   background: var(--accent-coral);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(231, 111, 81, 0.2), var(--shadow-glow);
+  box-shadow: 0 4px 12px rgba(var(--accent-coral-rgb), 0.2), var(--shadow-glow);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(231, 111, 81, 0.3), var(--shadow-glow);
-  background: #dc5f40;
+  box-shadow: 0 6px 16px rgba(var(--accent-coral-rgb), 0.3), var(--shadow-glow);
+  background: var(--accent-coral-hover);
 }
 
 .btn-secondary {
@@ -260,6 +261,7 @@ main {
   object-fit: contain;
   margin-bottom: 1.5rem;
   filter: drop-shadow(0 4px 10px rgba(128, 44, 92, 0.15));
+  mix-blend-mode: multiply;
 }
 
 .hero-subtitle {
@@ -362,7 +364,7 @@ main {
 .search-input:focus {
   outline: none;
   border-color: var(--accent-coral);
-  box-shadow: 0 0 10px rgba(231, 111, 81, 0.1);
+  box-shadow: 0 0 10px rgba(var(--accent-coral-rgb), 0.1);
 }
 
 .search-icon {
@@ -415,7 +417,7 @@ main {
   color: #ffffff;
   border-color: transparent;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(231, 111, 81, 0.25);
+  box-shadow: 0 4px 12px rgba(var(--accent-coral-rgb), 0.25);
 }
 
 .category-pill-count {
@@ -818,7 +820,7 @@ main {
 .form-control:focus {
   outline: none;
   border-color: var(--accent-coral);
-  box-shadow: 0 0 10px rgba(231, 111, 81, 0.1);
+  box-shadow: 0 0 10px rgba(var(--accent-coral-rgb), 0.1);
 }
 
 .form-hint {
@@ -1095,7 +1097,7 @@ main {
 
 .upload-dropzone:hover {
   border-color: var(--accent-coral);
-  background: rgba(231, 111, 81, 0.03);
+  background: rgba(var(--accent-coral-rgb), 0.03);
 }
 
 .upload-dropzone-icon {
