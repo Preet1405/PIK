@@ -297,8 +297,72 @@ export const StoreProvider = ({ children }) => {
     sessionStorage.removeItem('pik_admin_logged');
   };
 
+  // Toast Notification Helper
+  const showToast = (message) => {
+    let toast = document.getElementById('pik-toast-notification');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'pik-toast-notification';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = 'show';
+    
+    // Clear display after 4 seconds
+    setTimeout(() => {
+      if (toast && toast.className === 'show') {
+        toast.className = '';
+      }
+    }, 4500);
+  };
+
+  // Clipboard Helper to copy product images (supports Base64 and Web URLs)
+  const copyImageToClipboard = async (imageUrl) => {
+    try {
+      if (!imageUrl) return false;
+      
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      
+      let finalBlob = blob;
+      // Convert to PNG on canvas if it is JPEG/other format since ClipboardItem requires PNG
+      if (blob.type !== 'image/png') {
+        const img = new Image();
+        img.src = URL.createObjectURL(blob);
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        
+        finalBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      }
+      
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'image/png': finalBlob
+        })
+      ]);
+      return true;
+    } catch (err) {
+      console.warn('Failed to copy image to clipboard:', err);
+      return false;
+    }
+  };
+
   // Helper to send order message via WhatsApp
-  const orderProductViaWhatsapp = (product) => {
+  const orderProductViaWhatsapp = async (product) => {
+    let copied = false;
+    if (product.imageUrl) {
+      showToast("Copying product photo to clipboard...");
+      copied = await copyImageToClipboard(product.imageUrl);
+    }
+    
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
     
     // Check if the image is a web URL or a base64 string
@@ -315,7 +379,15 @@ export const StoreProvider = ({ children }) => {
                     
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${cleanNumber}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank');
+    
+    if (copied) {
+      showToast("Photo copied! When WhatsApp opens, click PASTE (Ctrl+V) in chat to attach the image.");
+      setTimeout(() => {
+        window.open(whatsappUrl, '_blank');
+      }, 2000);
+    } else {
+      window.open(whatsappUrl, '_blank');
+    }
   };
 
   return (
