@@ -30,14 +30,61 @@ export default function Storefront() {
       const prod = products.find(p => p.id === productId);
       if (prod) {
         setSelectedProduct(prod);
+        window.scrollTo({ top: 0, behavior: 'instant' });
       }
     }
   }, [products]);
+
+  // Handle browser Back/Forward navigation (PopState)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const productId = params.get('product');
+      if (productId && products.length > 0) {
+        const prod = products.find(p => p.id === productId);
+        if (prod) {
+          setSelectedProduct(prod);
+          window.scrollTo({ top: 0, behavior: 'instant' });
+          return;
+        }
+      }
+      setSelectedProduct(null);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [products]);
+
+  // Handle Navbar clicks or internal hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      setSelectedProduct(null);
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('product')) {
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + window.location.hash;
+        window.history.pushState({ path: newUrl }, '', newUrl);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleViewProduct = (product) => {
+    setSelectedProduct(product);
+    const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + `?product=${product.id}`;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
 
   const handleCloseModal = () => {
     setSelectedProduct(null);
     const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
     window.history.pushState({ path: newUrl }, '', newUrl);
+    setTimeout(() => {
+      const el = document.getElementById('products');
+      if (el) {
+        el.scrollIntoView({ behavior: 'instant' });
+      }
+    }, 50);
   };
 
   // Filter products
@@ -65,6 +112,24 @@ export default function Storefront() {
       window.open('https://maps.app.goo.gl/5MZBfiAMHytTAoQM8?g_st=ic', '_blank');
     }
   };
+
+  if (selectedProduct) {
+    return (
+      <div className="storefront-page animate-fade">
+        <ProductModal
+          product={selectedProduct}
+          onClose={handleCloseModal}
+        />
+        <footer className="footer">
+          <p className="footer-text">
+            &copy; {new Date().getFullYear()} <strong>{settings.storeName}</strong>. All rights reserved.
+            <br />
+            Powered by <span style={{ fontWeight: '600' }}>VOLITECH</span>.
+          </p>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="storefront-page animate-fade">
@@ -139,7 +204,7 @@ export default function Storefront() {
               <ProductCard
                 key={product.id}
                 product={product}
-                onViewDetails={setSelectedProduct}
+                onViewDetails={handleViewProduct}
               />
             ))}
           </div>
@@ -210,12 +275,7 @@ export default function Storefront() {
         </div>
       </section>
 
-      {selectedProduct && (
-        <ProductModal
-          product={selectedProduct}
-          onClose={handleCloseModal}
-        />
-      )}
+
 
       {/* Footer */}
       <footer className="footer">

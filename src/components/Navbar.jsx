@@ -13,6 +13,7 @@ export default function Navbar({ currentView, onNavigate }) {
 
   const handleMenuClick = (e, sectionId) => {
     e.preventDefault();
+    window.location.hash = sectionId;
     if (currentView !== 'store') {
       onNavigate('store');
       setTimeout(() => {
@@ -20,8 +21,10 @@ export default function Navbar({ currentView, onNavigate }) {
         if (el) el.scrollIntoView({ behavior: 'smooth' });
       }, 150);
     } else {
-      const el = document.getElementById(sectionId);
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
     }
   };
 
