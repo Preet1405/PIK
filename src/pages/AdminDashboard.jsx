@@ -45,6 +45,9 @@ export default function AdminDashboard() {
   // Image input option: 'upload' | 'url'
   const [imageOption, setImageOption] = useState('upload');
 
+  // Saving state to block UI during database sync operations
+  const [isSaving, setIsSaving] = useState(false);
+
   // Local helper to read and compress file uploads (supports multiple)
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
@@ -58,7 +61,7 @@ export default function AdminDashboard() {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxDimension = 800; // Limit base64 length to save LocalStorage size
+          const maxDimension = 600; // Limit base64 length to save LocalStorage size and speed up cloud sync
 
           if (width > height) {
             if (width > maxDimension) {
@@ -78,7 +81,7 @@ export default function AdminDashboard() {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.60);
           setProductForm(prev => ({
             ...prev,
             imageUrls: [...prev.imageUrls, compressedDataUrl]
@@ -173,8 +176,9 @@ export default function AdminDashboard() {
     setProductMode('edit');
   };
 
-  const handleProductSubmit = (e) => {
+  const handleProductSubmit = async (e) => {
     e.preventDefault();
+    setIsSaving(true);
     const parsedPrice = parseFloat(productForm.price) || 0;
     
     // Set first image in imageUrl for backward compatibility
@@ -184,17 +188,22 @@ export default function AdminDashboard() {
       imageUrl: productForm.imageUrls[0] || ''
     };
 
-    if (productMode === 'add') {
-      addProduct(finalForm);
-    } else if (productMode === 'edit' && editingProduct) {
-      updateProduct({
-        ...finalForm,
-        id: editingProduct.id
-      });
+    try {
+      if (productMode === 'add') {
+        await addProduct(finalForm);
+      } else if (productMode === 'edit' && editingProduct) {
+        await updateProduct({
+          ...finalForm,
+          id: editingProduct.id
+        });
+      }
+      setProductMode('list');
+      setEditingProduct(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
     }
-
-    setProductMode('list');
-    setEditingProduct(null);
   };
 
   // Toggle quick in-stock status
@@ -206,11 +215,18 @@ export default function AdminDashboard() {
   };
 
   // Category Add / Rename Handlers
-  const handleAddCategorySubmit = (e) => {
+  const handleAddCategorySubmit = async (e) => {
     e.preventDefault();
     if (newCatName.trim()) {
-      addCategory(newCatName);
-      setNewCatName('');
+      setIsSaving(true);
+      try {
+        await addCategory(newCatName);
+        setNewCatName('');
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -219,19 +235,59 @@ export default function AdminDashboard() {
     setRenamingCatName(cat);
   };
 
-  const handleSaveRenameCategory = () => {
+  const handleSaveRenameCategory = async () => {
     if (renamingCatName.trim() && renamingCat) {
-      renameCategory(renamingCat, renamingCatName);
-      setRenamingCat(null);
+      setIsSaving(true);
+      try {
+        await renameCategory(renamingCat, renamingCatName);
+        setRenamingCat(null);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
+  const handleDeleteCategory = async (cat) => {
+    if (window.confirm(`Are you sure you want to delete the category "${cat}"? Products in this category will be re-assigned.`)) {
+      setIsSaving(true);
+      try {
+        await deleteCategory(cat);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
+  const handleDeleteProduct = async (id) => {
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      setIsSaving(true);
+      try {
+        await deleteProduct(id);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
   // Settings Save Handler
-  const handleSettingsSubmit = (e) => {
+  const handleSettingsSubmit = async (e) => {
     e.preventDefault();
-    updateSettings(settingsForm);
-    setSettingsSuccess(true);
-    setTimeout(() => setSettingsSuccess(false), 3000);
+    setIsSaving(true);
+    try {
+      await updateSettings(settingsForm);
+      setSettingsSuccess(true);
+      setTimeout(() => setSettingsSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // If Admin is not logged in, show login page
@@ -383,8 +439,9 @@ export default function AdminDashboard() {
                               </button>
                               <button 
                                 className="icon-btn icon-btn-danger" 
-                                onClick={() => deleteProduct(prod.id)}
+                                onClick={() => handleDeleteProduct(prod.id)}
                                 title="Delete Product"
+                                disabled={isSaving}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -601,10 +658,10 @@ export default function AdminDashboard() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '2.5rem' }}>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                      Save Product
+                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={isSaving}>
+                      {isSaving ? 'Saving...' : 'Save Product'}
                     </button>
-                    <button type="button" className="btn btn-secondary" onClick={() => setProductMode('list')}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setProductMode('list')} disabled={isSaving}>
                       Cancel
                     </button>
                   </div>
@@ -637,9 +694,9 @@ export default function AdminDashboard() {
                       required
                     />
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={isSaving}>
                     <Plus size={16} />
-                    <span>Create Category</span>
+                    <span>{isSaving ? 'Creating...' : 'Create Category'}</span>
                   </button>
                 </form>
               </div>
@@ -685,8 +742,9 @@ export default function AdminDashboard() {
                               </button>
                               <button 
                                 className="icon-btn icon-btn-danger" 
-                                onClick={() => deleteCategory(cat)}
+                                onClick={() => handleDeleteCategory(cat)}
                                 title="Delete Category"
+                                disabled={isSaving}
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -787,9 +845,9 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1.5rem' }}>
-                  <RefreshCw size={16} />
-                  <span>Update and Save settings</span>
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1.5rem' }} disabled={isSaving}>
+                  <RefreshCw size={16} className={isSaving ? "animate-spin" : ""} />
+                  <span>{isSaving ? 'Updating...' : 'Update and Save settings'}</span>
                 </button>
               </form>
 

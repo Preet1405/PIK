@@ -205,81 +205,91 @@ export const StoreProvider = ({ children }) => {
   // Helper helper to write to cloud database
   const syncToCloud = async (path, data) => {
     try {
-      await fetch(`${DB_BASE_URL}/${path}`, {
+      const res = await fetch(`${DB_BASE_URL}/${path}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return true;
     } catch (err) {
       console.error(`Failed to sync changes to cloud path /${path}:`, err);
+      return false;
     }
   };
 
   // Product CRUD (with Cloud Sync)
-  const addProduct = (product) => {
+  const addProduct = async (product) => {
     const newProduct = {
       ...product,
       id: `prod-${Date.now()}`
     };
     const updated = [newProduct, ...products];
     setProducts(updated);
-    syncToCloud('products', updated);
+    return await syncToCloud('products', updated);
   };
 
-  const updateProduct = (updatedProduct) => {
+  const updateProduct = async (updatedProduct) => {
     const updated = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
     setProducts(updated);
-    syncToCloud('products', updated);
+    return await syncToCloud('products', updated);
   };
 
-  const deleteProduct = (id) => {
+  const deleteProduct = async (id) => {
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
-    syncToCloud('products', updated);
+    return await syncToCloud('products', updated);
   };
 
   // Category CRUD (with Cloud Sync)
-  const addCategory = (categoryName) => {
+  const addCategory = async (categoryName) => {
     const cleanedName = categoryName.trim();
     if (cleanedName && !categories.includes(cleanedName)) {
       const updated = [...categories, cleanedName];
       setCategories(updated);
-      syncToCloud('categories', updated);
+      return await syncToCloud('categories', updated);
     }
+    return false;
   };
 
-  const renameCategory = (oldName, newName) => {
+  const renameCategory = async (oldName, newName) => {
     const cleanedNewName = newName.trim();
-    if (!cleanedNewName || oldName === cleanedNewName) return;
+    if (!cleanedNewName || oldName === cleanedNewName) return false;
 
     const updatedCats = categories.map(cat => cat === oldName ? cleanedNewName : cat);
     setCategories(updatedCats);
-    syncToCloud('categories', updatedCats);
+    const catSync = await syncToCloud('categories', updatedCats);
 
     const updatedProds = products.map(prod => prod.category === oldName ? { ...prod, category: cleanedNewName } : prod);
     setProducts(updatedProds);
-    syncToCloud('products', updatedProds);
+    const prodSync = await syncToCloud('products', updatedProds);
+    
+    return catSync && prodSync;
   };
 
-  const deleteCategory = (categoryName) => {
+  const deleteCategory = async (categoryName) => {
     const updatedCats = categories.filter(cat => cat !== categoryName);
     setCategories(updatedCats);
-    syncToCloud('categories', updatedCats);
+    const catSync = await syncToCloud('categories', updatedCats);
 
     // Re-assign products in this category to first category
     const updatedProds = products.map(prod => prod.category === categoryName ? { ...prod, category: categories[0] || 'Uncategorized' } : prod);
     setProducts(updatedProds);
-    syncToCloud('products', updatedProds);
+    const prodSync = await syncToCloud('products', updatedProds);
+    
+    return catSync && prodSync;
   };
 
   // Settings update (with Cloud Sync)
-  const updateSettings = (newSettings) => {
+  const updateSettings = async (newSettings) => {
     const updated = {
       ...settings,
       ...newSettings
     };
     setSettings(updated);
-    syncToCloud('settings', updated);
+    return await syncToCloud('settings', updated);
   };
 
   // Admin Login/Logout
