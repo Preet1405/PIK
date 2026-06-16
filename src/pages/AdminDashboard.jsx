@@ -61,7 +61,7 @@ export default function AdminDashboard() {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxDimension = 600; // Limit base64 length to save LocalStorage size and speed up cloud sync
+          const maxDimension = 450; // Keep base64 small for fast cloud sync
 
           if (width > height) {
             if (width > maxDimension) {
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.60);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.45);
           setProductForm(prev => ({
             ...prev,
             imageUrls: [...prev.imageUrls, compressedDataUrl]
