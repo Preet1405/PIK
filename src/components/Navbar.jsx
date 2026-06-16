@@ -56,7 +56,6 @@ export default function Navbar({ currentView, onNavigate }) {
         <div className={`navbar-content ${isMobileMenuOpen ? 'open' : ''}`}>
           <div className="navbar-menu">
             <a href="#home" className="navbar-link" onClick={(e) => handleMenuClick(e, 'home')}>Home</a>
-            <a href="#products" className="navbar-link" onClick={(e) => handleMenuClick(e, 'products')}>Products</a>
             <a href="#contact" className="navbar-link" onClick={(e) => handleMenuClick(e, 'contact')}>Contact</a>
           </div>
 
