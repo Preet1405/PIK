@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect } from 'react';
 
 export const StoreContext = createContext();
 
-const DB_BASE_URL = 'https://pik-bags-default-rtdb.firebaseio.com';
+const DB_BASE_URL = 'https://kvdb.io/3h6MXWHLN9eTgfQ2je81HH';
 
 const DEFAULT_CATEGORIES = [
   'Tote Bags',
@@ -121,54 +121,75 @@ export const StoreProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('pik_settings', JSON.stringify(settings));
-  }, [settings]);
-
-  // Load from Cloud Database on mount
+  }, [settings]);  // Load from Cloud Database on mount
   useEffect(() => {
     const loadCloudData = async () => {
       setIsSyncing(true);
       try {
         // 1. Fetch categories
-        const catRes = await fetch(`${DB_BASE_URL}/categories.json`);
-        const catData = await catRes.json();
-        if (catData) {
-          setCategories(catData);
-        } else {
-          // Initialize DB if empty
-          await fetch(`${DB_BASE_URL}/categories.json`, {
-            method: 'PUT',
-            body: JSON.stringify(DEFAULT_CATEGORIES)
-          });
+        try {
+          const catRes = await fetch(`${DB_BASE_URL}/categories`);
+          if (catRes.status === 404) {
+            // Initialize if not present
+            await fetch(`${DB_BASE_URL}/categories`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(DEFAULT_CATEGORIES)
+            });
+            setCategories(DEFAULT_CATEGORIES);
+          } else if (catRes.ok) {
+            const catData = await catRes.json();
+            if (Array.isArray(catData)) {
+              setCategories(catData);
+            }
+          }
+        } catch (err) {
+          console.warn('Error loading categories from cloud database:', err);
         }
 
         // 2. Fetch settings
-        const setRes = await fetch(`${DB_BASE_URL}/settings.json`);
-        const setData = await setRes.json();
-        if (setData) {
-          setSettings(setData);
-        } else {
-          // Initialize DB if empty
-          await fetch(`${DB_BASE_URL}/settings.json`, {
-            method: 'PUT',
-            body: JSON.stringify(DEFAULT_SETTINGS)
-          });
+        try {
+          const setRes = await fetch(`${DB_BASE_URL}/settings`);
+          if (setRes.status === 404) {
+            // Initialize if not present
+            await fetch(`${DB_BASE_URL}/settings`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(DEFAULT_SETTINGS)
+            });
+            setSettings(DEFAULT_SETTINGS);
+          } else if (setRes.ok) {
+            const setData = await setRes.json();
+            if (setData && typeof setData === 'object' && !setData.error) {
+              setSettings(setData);
+            }
+          }
+        } catch (err) {
+          console.warn('Error loading settings from cloud database:', err);
         }
 
         // 3. Fetch products
-        const prodRes = await fetch(`${DB_BASE_URL}/products.json`);
-        const prodData = await prodRes.json();
-        if (prodData) {
-          // Firebase returns objects or arrays. If it was created as array, it will return array, but if index keys were modified, it might return object. Let's normalize it to array.
-          const normalizedProds = Array.isArray(prodData) 
-            ? prodData.filter(Boolean) 
-            : Object.values(prodData);
-          setProducts(normalizedProds);
-        } else {
-          // Initialize DB if empty
-          await fetch(`${DB_BASE_URL}/products.json`, {
-            method: 'PUT',
-            body: JSON.stringify(DEFAULT_PRODUCTS)
-          });
+        try {
+          const prodRes = await fetch(`${DB_BASE_URL}/products`);
+          if (prodRes.status === 404) {
+            // Initialize if not present
+            await fetch(`${DB_BASE_URL}/products`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(DEFAULT_PRODUCTS)
+            });
+            setProducts(DEFAULT_PRODUCTS);
+          } else if (prodRes.ok) {
+            const prodData = await prodRes.json();
+            if (prodData && !prodData.error) {
+              const normalizedProds = Array.isArray(prodData)
+                ? prodData.filter(Boolean)
+                : Object.values(prodData);
+              setProducts(normalizedProds);
+            }
+          }
+        } catch (err) {
+          console.warn('Error loading products from cloud database:', err);
         }
       } catch (err) {
         console.warn('Unable to sync with cloud database. Running in offline/cache mode:', err);
@@ -183,7 +204,7 @@ export const StoreProvider = ({ children }) => {
   // Helper helper to write to cloud database
   const syncToCloud = async (path, data) => {
     try {
-      await fetch(`${DB_BASE_URL}/${path}.json`, {
+      await fetch(`${DB_BASE_URL}/${path}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
