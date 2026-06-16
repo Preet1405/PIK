@@ -162,6 +162,11 @@ main {
   .navbar-menu {
     gap: 1rem;
   }
+  .hero-logo-text {
+    font-size: 2.25rem;
+    letter-spacing: 1px;
+    margin-bottom: 1rem;
+  }
 }
 
 .navbar-link {
@@ -261,6 +266,18 @@ main {
   object-fit: contain;
   margin-bottom: 1.5rem;
   mix-blend-mode: multiply;
+}
+
+.hero-logo-text {
+  font-family: var(--font-serif);
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: var(--accent-coral);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 1.5rem;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .hero-subtitle {
