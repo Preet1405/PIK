@@ -87,8 +87,46 @@ const DEFAULT_SETTINGS = {
   adminPasscode: 'admin123'
 };
 
+// Toast Notification Helper (module-level so it can be used before provider mounts)
+const showToast = (message) => {
+  let toast = document.getElementById('pik-toast-notification');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'pik-toast-notification';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.className = 'show';
+  setTimeout(() => {
+    if (toast && toast.className === 'show') {
+      toast.className = '';
+    }
+  }, 4500);
+};
+
+// Helper to write to cloud database (with retry)
+const syncToCloud = async (path, data, retries = 2) => {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${DB_BASE_URL}/${path}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) return true;
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+      }
+    } catch (err) {
+      if (attempt === retries) {
+        console.error(`Failed to sync to cloud /${path}:`, err);
+      }
+    }
+  }
+  return false;
+};
+
 export const StoreProvider = ({ children }) => {
-  // Read local cache initially
   const [categories, setCategories] = useState(() => {
     const saved = localStorage.getItem('pik_categories');
     return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
@@ -110,7 +148,7 @@ export const StoreProvider = ({ children }) => {
 
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Sync state to local storage when state changes locally
+  // Persist to localStorage on every state change
   useEffect(() => {
     localStorage.setItem('pik_categories', JSON.stringify(categories));
   }, [categories]);
@@ -121,23 +159,21 @@ export const StoreProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('pik_settings', JSON.stringify(settings));
-  }, [settings]);  // Load from Cloud Database on mount
+  }, [settings]);
+
+  // Load from Cloud Database on mount — merge with local data
   useEffect(() => {
     const loadCloudData = async () => {
       setIsSyncing(true);
       try {
         const cacheBuster = `?t=${Date.now()}`;
+
         // 1. Fetch categories
         try {
           const catRes = await fetch(`${DB_BASE_URL}/categories${cacheBuster}`);
           if (catRes.status === 404) {
-            // Initialize if not present
-            await fetch(`${DB_BASE_URL}/categories`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(DEFAULT_CATEGORIES)
-            });
-            setCategories(DEFAULT_CATEGORIES);
+            const localCats = JSON.parse(localStorage.getItem('pik_categories') || 'null') || DEFAULT_CATEGORIES;
+            await syncToCloud('categories', localCats);
           } else if (catRes.ok) {
             const catData = await catRes.json();
             if (Array.isArray(catData)) {
@@ -145,20 +181,15 @@ export const StoreProvider = ({ children }) => {
             }
           }
         } catch (err) {
-          console.warn('Error loading categories from cloud database:', err);
+          console.warn('Error loading categories:', err);
         }
 
         // 2. Fetch settings
         try {
           const setRes = await fetch(`${DB_BASE_URL}/settings${cacheBuster}`);
           if (setRes.status === 404) {
-            // Initialize if not present
-            await fetch(`${DB_BASE_URL}/settings`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(DEFAULT_SETTINGS)
-            });
-            setSettings(DEFAULT_SETTINGS);
+            const localSettings = JSON.parse(localStorage.getItem('pik_settings') || 'null') || DEFAULT_SETTINGS;
+            await syncToCloud('settings', localSettings);
           } else if (setRes.ok) {
             const setData = await setRes.json();
             if (setData && typeof setData === 'object' && !setData.error) {
@@ -166,34 +197,40 @@ export const StoreProvider = ({ children }) => {
             }
           }
         } catch (err) {
-          console.warn('Error loading settings from cloud database:', err);
+          console.warn('Error loading settings:', err);
         }
 
-        // 3. Fetch products
+        // 3. Fetch products — MERGE with local to avoid losing unsaved additions
         try {
           const prodRes = await fetch(`${DB_BASE_URL}/products${cacheBuster}`);
           if (prodRes.status === 404) {
-            // Initialize if not present
-            await fetch(`${DB_BASE_URL}/products`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(DEFAULT_PRODUCTS)
-            });
-            setProducts(DEFAULT_PRODUCTS);
+            const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null') || DEFAULT_PRODUCTS;
+            await syncToCloud('products', localProds);
           } else if (prodRes.ok) {
             const prodData = await prodRes.json();
             if (prodData && !prodData.error) {
-              const normalizedProds = Array.isArray(prodData)
+              const cloudProds = Array.isArray(prodData)
                 ? prodData.filter(Boolean)
                 : Object.values(prodData);
-              setProducts(normalizedProds);
+
+              // Merge: cloud as base, add any local-only products on top
+              setProducts(prevLocal => {
+                const cloudIds = new Set(cloudProds.map(p => p.id));
+                const localOnly = prevLocal.filter(p => !cloudIds.has(p.id));
+                if (localOnly.length > 0) {
+                  const merged = [...localOnly, ...cloudProds];
+                  syncToCloud('products', merged);
+                  return merged;
+                }
+                return cloudProds;
+              });
             }
           }
         } catch (err) {
-          console.warn('Error loading products from cloud database:', err);
+          console.warn('Error loading products:', err);
         }
       } catch (err) {
-        console.warn('Unable to sync with cloud database. Running in offline/cache mode:', err);
+        console.warn('Cloud sync unavailable, running offline:', err);
       } finally {
         setIsSyncing(false);
       }
@@ -202,94 +239,142 @@ export const StoreProvider = ({ children }) => {
     loadCloudData();
   }, []);
 
-  // Helper helper to write to cloud database
-  const syncToCloud = async (path, data) => {
-    try {
-      const res = await fetch(`${DB_BASE_URL}/${path}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      return true;
-    } catch (err) {
-      console.error(`Failed to sync changes to cloud path /${path}:`, err);
-      return false;
-    }
-  };
+  // ──────────────────────────────────────────────
+  // Product CRUD — functional state updates (prev => ...) to avoid stale closures
+  // ──────────────────────────────────────────────
 
-  // Product CRUD (with Cloud Sync)
   const addProduct = async (product) => {
     const newProduct = {
       ...product,
       id: `prod-${Date.now()}`
     };
-    const updated = [newProduct, ...products];
-    setProducts(updated);
-    return await syncToCloud('products', updated);
+
+    // Immediately update state + localStorage
+    const updatedList = await new Promise(resolve => {
+      setProducts(prev => {
+        const next = [newProduct, ...prev];
+        resolve(next);
+        return next;
+      });
+    });
+
+    // Sync to cloud in background
+    const synced = await syncToCloud('products', updatedList);
+    showToast(synced ? '✓ Product saved!' : '⚠ Saved locally. Cloud sync will retry.');
+    return synced;
   };
 
   const updateProduct = async (updatedProduct) => {
-    const updated = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
-    setProducts(updated);
-    return await syncToCloud('products', updated);
+    const updatedList = await new Promise(resolve => {
+      setProducts(prev => {
+        const next = prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+        resolve(next);
+        return next;
+      });
+    });
+
+    const synced = await syncToCloud('products', updatedList);
+    return synced;
   };
 
   const deleteProduct = async (id) => {
-    const updated = products.filter(p => p.id !== id);
-    setProducts(updated);
-    return await syncToCloud('products', updated);
+    const updatedList = await new Promise(resolve => {
+      setProducts(prev => {
+        const next = prev.filter(p => p.id !== id);
+        resolve(next);
+        return next;
+      });
+    });
+
+    const synced = await syncToCloud('products', updatedList);
+    if (synced) showToast('✓ Product deleted.');
+    return synced;
   };
 
-  // Category CRUD (with Cloud Sync)
+  // ──────────────────────────────────────────────
+  // Category CRUD — functional state updates
+  // ──────────────────────────────────────────────
+
   const addCategory = async (categoryName) => {
     const cleanedName = categoryName.trim();
-    if (cleanedName && !categories.includes(cleanedName)) {
-      const updated = [...categories, cleanedName];
-      setCategories(updated);
-      return await syncToCloud('categories', updated);
-    }
-    return false;
+    if (!cleanedName) return false;
+
+    let updatedList;
+    let exists = false;
+    setCategories(prev => {
+      if (prev.includes(cleanedName)) {
+        exists = true;
+        return prev;
+      }
+      updatedList = [...prev, cleanedName];
+      return updatedList;
+    });
+    if (exists) return false;
+    await new Promise(r => setTimeout(r, 0));
+    return await syncToCloud('categories', updatedList);
   };
 
   const renameCategory = async (oldName, newName) => {
     const cleanedNewName = newName.trim();
     if (!cleanedNewName || oldName === cleanedNewName) return false;
 
-    const updatedCats = categories.map(cat => cat === oldName ? cleanedNewName : cat);
-    setCategories(updatedCats);
-    const catSync = await syncToCloud('categories', updatedCats);
+    let updatedCats, updatedProds;
 
-    const updatedProds = products.map(prod => prod.category === oldName ? { ...prod, category: cleanedNewName } : prod);
-    setProducts(updatedProds);
+    setCategories(prev => {
+      updatedCats = prev.map(cat => cat === oldName ? cleanedNewName : cat);
+      return updatedCats;
+    });
+
+    setProducts(prev => {
+      updatedProds = prev.map(prod =>
+        prod.category === oldName ? { ...prod, category: cleanedNewName } : prod
+      );
+      return updatedProds;
+    });
+
+    await new Promise(r => setTimeout(r, 0));
+    const catSync = await syncToCloud('categories', updatedCats);
     const prodSync = await syncToCloud('products', updatedProds);
-    
     return catSync && prodSync;
   };
 
   const deleteCategory = async (categoryName) => {
-    const updatedCats = categories.filter(cat => cat !== categoryName);
-    setCategories(updatedCats);
-    const catSync = await syncToCloud('categories', updatedCats);
+    let updatedCats, updatedProds;
 
-    // Re-assign products in this category to first category
-    const updatedProds = products.map(prod => prod.category === categoryName ? { ...prod, category: categories[0] || 'Uncategorized' } : prod);
-    setProducts(updatedProds);
+    setCategories(prev => {
+      updatedCats = prev.filter(cat => cat !== categoryName);
+      return updatedCats;
+    });
+
+    setProducts(prev => {
+      updatedProds = prev.map(prod =>
+        prod.category === categoryName
+          ? { ...prod, category: updatedCats[0] || 'Uncategorized' }
+          : prod
+      );
+      return updatedProds;
+    });
+
+    await new Promise(r => setTimeout(r, 0));
+    const catSync = await syncToCloud('categories', updatedCats);
     const prodSync = await syncToCloud('products', updatedProds);
-    
     return catSync && prodSync;
   };
 
-  // Settings update (with Cloud Sync)
+  // ──────────────────────────────────────────────
+  // Settings update
+  // ──────────────────────────────────────────────
+
   const updateSettings = async (newSettings) => {
-    const updated = {
-      ...settings,
-      ...newSettings
-    };
-    setSettings(updated);
-    return await syncToCloud('settings', updated);
+    let updated;
+    setSettings(prev => {
+      updated = { ...prev, ...newSettings };
+      return updated;
+    });
+    await new Promise(r => setTimeout(r, 0));
+    const synced = await syncToCloud('settings', updated);
+    if (synced) showToast('✓ Settings saved!');
+    return synced;
   };
 
   // Admin Login/Logout
@@ -307,25 +392,6 @@ export const StoreProvider = ({ children }) => {
     sessionStorage.removeItem('pik_admin_logged');
   };
 
-  // Toast Notification Helper
-  const showToast = (message) => {
-    let toast = document.getElementById('pik-toast-notification');
-    if (!toast) {
-      toast = document.createElement('div');
-      toast.id = 'pik-toast-notification';
-      document.body.appendChild(toast);
-    }
-    toast.textContent = message;
-    toast.className = 'show';
-    
-    // Clear display after 4 seconds
-    setTimeout(() => {
-      if (toast && toast.className === 'show') {
-        toast.className = '';
-      }
-    }, 4500);
-  };
-
   // Clipboard Helper to copy product images (supports Base64 and Web URLs)
   const copyImageToClipboard = async (imageUrl) => {
     try {
@@ -335,7 +401,6 @@ export const StoreProvider = ({ children }) => {
       const blob = await res.blob();
       
       let finalBlob = blob;
-      // Convert to PNG on canvas if it is JPEG/other format since ClipboardItem requires PNG
       if (blob.type !== 'image/png') {
         const img = new Image();
         img.src = URL.createObjectURL(blob);
@@ -375,7 +440,6 @@ export const StoreProvider = ({ children }) => {
     
     const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
     
-    // Check if the image is a web URL or a base64 string
     const isWebImage = product.imageUrl && (product.imageUrl.startsWith('http') || product.imageUrl.startsWith('//'));
     const photoLine = isWebImage ? `*Product Photo:* ${product.imageUrl}\n` : '';
     
