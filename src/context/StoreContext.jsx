@@ -126,9 +126,10 @@ export const StoreProvider = ({ children }) => {
     const loadCloudData = async () => {
       setIsSyncing(true);
       try {
+        const cacheBuster = `?t=${Date.now()}`;
         // 1. Fetch categories
         try {
-          const catRes = await fetch(`${DB_BASE_URL}/categories`);
+          const catRes = await fetch(`${DB_BASE_URL}/categories${cacheBuster}`);
           if (catRes.status === 404) {
             // Initialize if not present
             await fetch(`${DB_BASE_URL}/categories`, {
@@ -149,7 +150,7 @@ export const StoreProvider = ({ children }) => {
 
         // 2. Fetch settings
         try {
-          const setRes = await fetch(`${DB_BASE_URL}/settings`);
+          const setRes = await fetch(`${DB_BASE_URL}/settings${cacheBuster}`);
           if (setRes.status === 404) {
             // Initialize if not present
             await fetch(`${DB_BASE_URL}/settings`, {
@@ -170,7 +171,7 @@ export const StoreProvider = ({ children }) => {
 
         // 3. Fetch products
         try {
-          const prodRes = await fetch(`${DB_BASE_URL}/products`);
+          const prodRes = await fetch(`${DB_BASE_URL}/products${cacheBuster}`);
           if (prodRes.status === 404) {
             // Initialize if not present
             await fetch(`${DB_BASE_URL}/products`, {
