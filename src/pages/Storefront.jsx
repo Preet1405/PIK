@@ -55,9 +55,7 @@ export default function Storefront() {
 
       {/* Products Catalog Section */}
       <section id="products" className="section-container">
-        <div className="section-title-wrap">
-          <h2 className="section-title">Shop Our Products</h2>
-        </div>
+
 
         <div className="catalog-header animate-scale">
           <div className="search-container">
