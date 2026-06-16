@@ -193,7 +193,7 @@ export const StoreProvider = ({ children }) => {
 
   // Helper to send order message via WhatsApp
   const orderProductViaWhatsapp = (product) => {
-    const cleanNumber = settings.whatsappNumber.replace(/[^\d+]/g, '');
+    const cleanNumber = settings.whatsappNumber.replace(/\D/g, '');
     const message = `Hello! I would like to order this product from *${settings.storeName}*:\n\n` +
                     `*Product:* ${product.name}\n` +
                     `*Category:* ${product.category}\n` +
