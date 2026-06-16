@@ -303,15 +303,14 @@ export const StoreProvider = ({ children }) => {
     
     // Check if the image is a web URL or a base64 string
     const isWebImage = product.imageUrl && (product.imageUrl.startsWith('http') || product.imageUrl.startsWith('//'));
-    const photoLine = isWebImage ? `*Photo:* ${product.imageUrl}\n` : '';
+    const photoLine = isWebImage ? `*Product Photo:* ${product.imageUrl}\n` : '';
     
     const message = `Hello! I would like to order this product from *${settings.storeName}*:\n\n` +
                     `*Product Name:* ${product.name}\n` +
                     `*Category:* ${product.category}\n` +
                     `*Price:* ${settings.currency}${product.price.toLocaleString()}\n` +
                     `*Details:* ${product.description}\n` +
-                    photoLine +
-                    `\nProduct Link: ${window.location.origin}/?product=${product.id}\n\n` +
+                    photoLine + '\n' +
                     `Please let me know its availability and payment/delivery details. Thank you!`;
                     
     const encodedMessage = encodeURIComponent(message);
