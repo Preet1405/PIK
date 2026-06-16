@@ -40,7 +40,7 @@ export default function ProductCard({ product, onViewDetails }) {
             disabled={!product.inStock}
           >
             <MessageSquare size={16} />
-            <span>Order</span>
+            <span className="product-card-btn-text">Order</span>
           </button>
         </div>
       </div>

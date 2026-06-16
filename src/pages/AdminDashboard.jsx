@@ -101,7 +101,8 @@ export default function AdminDashboard() {
     category: '',
     imageUrl: '',
     imageUrls: [],
-    inStock: true
+    inStock: true,
+    featured: false
   });
 
   const [newCatName, setNewCatName] = useState('');
@@ -147,7 +148,8 @@ export default function AdminDashboard() {
       category: categories[0] || 'Uncategorized',
       imageUrl: '',
       imageUrls: [],
-      inStock: true
+      inStock: true,
+      featured: false
     });
     setImageOption('upload');
     setProductMode('add');
@@ -163,7 +165,8 @@ export default function AdminDashboard() {
       category: prod.category,
       imageUrl: prod.imageUrl || '',
       imageUrls: resolvedUrls,
-      inStock: prod.inStock
+      inStock: prod.inStock,
+      featured: prod.featured || false
     });
     
     // Auto-detect if image is custom uploaded or web URL
@@ -212,6 +215,21 @@ export default function AdminDashboard() {
       ...prod,
       inStock: !prod.inStock
     });
+  };
+
+  // Toggle quick featured status
+  const handleToggleFeatured = async (prod) => {
+    setIsSaving(true);
+    try {
+      await updateProduct({
+        ...prod,
+        featured: !prod.featured
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Category Add / Rename Handlers
@@ -385,6 +403,7 @@ export default function AdminDashboard() {
                         <th>Category</th>
                         <th>Price</th>
                         <th>Stock Status</th>
+                        <th>Featured</th>
                         <th style={{ textAlign: 'center' }}>Actions</th>
                       </tr>
                     </thead>
@@ -426,6 +445,24 @@ export default function AdminDashboard() {
                               }}
                             >
                               {prod.inStock ? 'In Stock' : 'Out of Stock'}
+                            </button>
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => handleToggleFeatured(prod)}
+                              className="btn"
+                              style={{ 
+                                padding: '0.25rem 0.75rem', 
+                                fontSize: '0.75rem', 
+                                background: prod.featured ? 'rgba(128, 44, 92, 0.1)' : 'transparent', 
+                                border: `1px solid ${prod.featured ? 'var(--accent-gold)' : 'var(--border-color)'}`,
+                                color: prod.featured ? 'var(--accent-gold)' : 'var(--text-muted)',
+                                width: '80px',
+                                fontWeight: prod.featured ? '600' : 'normal'
+                              }}
+                              disabled={isSaving}
+                            >
+                              {prod.featured ? '★ Yes' : '☆ No'}
                             </button>
                           </td>
                           <td style={{ textAlign: 'center' }}>
@@ -644,16 +681,31 @@ export default function AdminDashboard() {
                     )}
                   </div>
 
-                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.5rem' }}>
                     <input
-                      type="checkbox"
                       id="inStockCheckbox"
+                      type="checkbox"
                       checked={productForm.inStock}
                       onChange={(e) => setProductForm({ ...productForm, inStock: e.target.checked })}
                       style={{ width: '18px', height: '18px', accentColor: 'var(--accent-gold)' }}
+                      disabled={isSaving}
                     />
                     <label htmlFor="inStockCheckbox" style={{ userSelect: 'none', cursor: 'pointer', fontSize: '0.9rem' }}>
                       Mark product as <strong>In Stock</strong> (Available for ordering)
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+                    <input
+                      id="featuredCheckbox"
+                      type="checkbox"
+                      checked={productForm.featured || false}
+                      onChange={(e) => setProductForm({ ...productForm, featured: e.target.checked })}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--accent-gold)' }}
+                      disabled={isSaving}
+                    />
+                    <label htmlFor="featuredCheckbox" style={{ userSelect: 'none', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      Mark as <strong>Featured Product</strong> (Shown on homepage)
                     </label>
                   </div>
 
