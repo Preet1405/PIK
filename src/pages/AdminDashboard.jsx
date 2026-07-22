@@ -28,7 +28,9 @@ export default function AdminDashboard() {
     renameCategory,
     deleteCategory,
     updateSettings,
-    loginAdmin
+    loginAdmin,
+    fetchCloudData,
+    isSyncing
   } = useContext(StoreContext);
 
   // Auth State
@@ -176,7 +178,7 @@ export default function AdminDashboard() {
     setProductMode('edit');
   };
 
-  const handleProductSubmit = (e) => {
+  const handleProductSubmit = async (e) => {
     e.preventDefault();
     const parsedPrice = parseFloat(productForm.price) || 0;
     
@@ -187,16 +189,27 @@ export default function AdminDashboard() {
       imageUrl: productForm.imageUrls[0] || ''
     };
 
-    if (productMode === 'add') {
-      addProduct(finalForm);
-    } else if (productMode === 'edit' && editingProduct) {
-      updateProduct({
-        ...finalForm,
-        id: editingProduct.id
-      });
+    setIsSaving(true);
+    let success = false;
+    try {
+      if (productMode === 'add') {
+        success = await addProduct(finalForm);
+      } else if (productMode === 'edit' && editingProduct) {
+        success = await updateProduct({
+          ...finalForm,
+          id: editingProduct.id
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
     }
-    setProductMode('list');
-    setEditingProduct(null);
+
+    if (success) {
+      setProductMode('list');
+      setEditingProduct(null);
+    }
   };
 
   // Toggle quick in-stock status
@@ -351,13 +364,24 @@ export default function AdminDashboard() {
         {/* Products Tab */}
         {activeTab === 'products' && (
           <div>
-            <div className="admin-tab-title">
+            <div className="admin-tab-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Catalog Management</span>
               {productMode === 'list' && (
-                <button className="btn btn-primary" onClick={handleOpenAddProduct}>
-                  <Plus size={16} />
-                  <span>Add Product</span>
-                </button>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={() => fetchCloudData()}
+                    disabled={isSyncing || isSaving}
+                    title="Pull latest data from cloud"
+                  >
+                    <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
+                    <span>{isSyncing ? 'Syncing...' : 'Sync from Cloud'}</span>
+                  </button>
+                  <button className="btn btn-primary" onClick={handleOpenAddProduct} disabled={isSyncing || isSaving}>
+                    <Plus size={16} />
+                    <span>Add Product</span>
+                  </button>
+                </div>
               )}
             </div>
 

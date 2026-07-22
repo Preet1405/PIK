@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useRef } from 'react';
 
 export const StoreContext = createContext();
 
@@ -84,7 +84,7 @@ const DEFAULT_SETTINGS = {
   tagline: 'Custom Protection & Tailored Packaging',
   description: 'We design and manufacture premium, heavy-duty covers, travel bags, and protective sleeves. Tailored to your specifications using superior quality fabrics for ultimate durability.',
   heroImage: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=1600',
-  adminPasscode: 'admin123'
+  adminPasscode: 'Preet1405'
 };
 
 // Toast Notification Helper
@@ -230,118 +230,139 @@ export const StoreProvider = ({ children }) => {
     return results.filter(p => p && typeof p === 'object' && p.id);
   };
 
-  // Load cloud data on mount
+  // Standalone fetch function for manual refreshing
+  const fetchCloudData = async (silent = false) => {
+    if (!silent) setIsSyncing(true);
+    try {
+      // 1. Categories
+      const cloudCats = await cloudGet('categories');
+      if (cloudCats === null) {
+        const localCats = JSON.parse(localStorage.getItem('pik_categories') || 'null') || DEFAULT_CATEGORIES;
+        await cloudPut('categories', localCats);
+      } else if (Array.isArray(cloudCats)) {
+        setCategories(cloudCats);
+      }
+
+      // 2. Settings
+      const cloudSettings = await cloudGet('settings');
+      if (cloudSettings === null) {
+        const localSettings = JSON.parse(localStorage.getItem('pik_settings') || 'null') || DEFAULT_SETTINGS;
+        localSettings.adminPasscode = 'Preet1405';
+        await cloudPut('settings', localSettings);
+        setSettings(localSettings);
+      } else if (cloudSettings && typeof cloudSettings === 'object' && !cloudSettings.error) {
+        // Enforce Preet1405 as the passcode
+        const updatedCloudSettings = { ...cloudSettings, adminPasscode: 'Preet1405' };
+        if (cloudSettings.adminPasscode !== 'Preet1405') {
+          cloudPut('settings', updatedCloudSettings);
+        }
+        setSettings(updatedCloudSettings);
+      }
+
+      // 3. Products (individual keys)
+      const cloudProds = await loadProductsFromCloud();
+      if (cloudProds === null) {
+        // Nothing in cloud — push local products (seeding empty DB)
+        const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null') || DEFAULT_PRODUCTS;
+        await Promise.all(localProds.map(p => saveProductToCloud(p)));
+        await saveProductIndex(localProds);
+      } else if (cloudProds !== undefined && Array.isArray(cloudProds)) {
+        // Strict Cloud Authority: Overwrite local state entirely.
+        // We removed the faulty logic that pushed local products back up to the cloud.
+        setProducts(cloudProds);
+      }
+      
+      return true;
+    } catch (err) {
+      console.warn('Cloud sync unavailable, running offline:', err);
+      return false;
+    } finally {
+      if (!silent) setIsSyncing(false);
+    }
+  };
+
+  // Load cloud data on mount and poll every 2 seconds
   useEffect(() => {
-    const loadCloudData = async () => {
-      setIsSyncing(true);
-      try {
-        // 1. Categories
-        const cloudCats = await cloudGet('categories');
-        if (cloudCats === null) {
-          const localCats = JSON.parse(localStorage.getItem('pik_categories') || 'null') || DEFAULT_CATEGORIES;
-          await cloudPut('categories', localCats);
-        } else if (Array.isArray(cloudCats)) {
-          setCategories(cloudCats);
-        }
+    fetchCloudData();
+    const intervalId = setInterval(() => {
+      fetchCloudData(true);
+    }, 2000);
+    return () => clearInterval(intervalId);
+  }, []);
 
-        // 2. Settings
-        const cloudSettings = await cloudGet('settings');
-        if (cloudSettings === null) {
-          const localSettings = JSON.parse(localStorage.getItem('pik_settings') || 'null') || DEFAULT_SETTINGS;
-          await cloudPut('settings', localSettings);
-        } else if (cloudSettings && typeof cloudSettings === 'object' && !cloudSettings.error) {
-          setSettings(cloudSettings);
-        }
-
-        // 3. Products (individual keys)
-        const cloudProds = await loadProductsFromCloud();
-        if (cloudProds === null) {
-          // Nothing in cloud — push local products
-          const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null') || DEFAULT_PRODUCTS;
-          await Promise.all(localProds.map(p => saveProductToCloud(p)));
-          await saveProductIndex(localProds);
-        } else if (cloudProds !== undefined && Array.isArray(cloudProds)) {
-          // Merge: cloud as base, add any local-only products
-          setProducts(prevLocal => {
-            const cloudIds = new Set(cloudProds.map(p => p.id));
-            const localOnly = prevLocal.filter(p => !cloudIds.has(p.id));
-            if (localOnly.length > 0) {
-              const merged = [...localOnly, ...cloudProds];
-              // Sync the local-only products to cloud
-              localOnly.forEach(p => saveProductToCloud(p));
-              saveProductIndex(merged);
-              return merged;
-            }
-            return cloudProds;
-          });
-        }
-        // if undefined (error), keep local data as-is
-      } catch (err) {
-        console.warn('Cloud sync unavailable, running offline:', err);
-      } finally {
-        setIsSyncing(false);
+  // Cross-tab synchronization listener
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'pik_products' && e.newValue) {
+        try { setProducts(JSON.parse(e.newValue)); } catch (err) {}
+      }
+      if (e.key === 'pik_categories' && e.newValue) {
+        try { setCategories(JSON.parse(e.newValue)); } catch (err) {}
+      }
+      if (e.key === 'pik_settings' && e.newValue) {
+        try { setSettings(JSON.parse(e.newValue)); } catch (err) {}
       }
     };
-
-    loadCloudData();
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // ──────────────────────────────────────────────
-  // Product CRUD — instant local save, background cloud sync
+  // Product CRUD — Instant Optimistic Updates
   // ──────────────────────────────────────────────
 
-  const addProduct = (product) => {
+  const addProduct = async (product) => {
     const newProduct = {
       ...product,
       id: `prod-${Date.now()}`
     };
 
-    // Instant state + localStorage update
-    let updatedList;
-    setProducts(prev => {
-      updatedList = [newProduct, ...prev];
-      return updatedList;
-    });
+    const updatedList = [newProduct, ...products];
+
+    // 1. INSTANT LOCAL UPDATE
+    setProducts(updatedList);
+    localStorage.setItem('pik_products', JSON.stringify(updatedList));
     showToast('✓ Product saved!');
 
-    // Background cloud sync (fire-and-forget)
-    setTimeout(() => {
-      saveProductToCloud(newProduct).then(() => {
-        saveProductIndex(updatedList);
-      });
-    }, 100);
+    // 2. BACKGROUND CLOUD SYNC
+    const saved = await saveProductToCloud(newProduct);
+    const indexSaved = await saveProductIndex(updatedList);
+
+    if (!saved || !indexSaved) {
+      console.warn('Cloud sync failed for addProduct');
+    }
 
     return true;
   };
 
-  const updateProduct = (updatedProduct) => {
-    // Instant state update
-    setProducts(prev =>
-      prev.map(p => p.id === updatedProduct.id ? updatedProduct : p)
-    );
+  const updateProduct = async (updatedProduct) => {
+    const updatedList = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
 
-    // Background cloud sync
-    setTimeout(() => {
-      saveProductToCloud(updatedProduct);
-    }, 100);
+    // 1. INSTANT LOCAL UPDATE
+    setProducts(updatedList);
+    localStorage.setItem('pik_products', JSON.stringify(updatedList));
+    showToast('✓ Product updated!');
+
+    // 2. BACKGROUND CLOUD SYNC
+    const saved = await saveProductToCloud(updatedProduct);
+    if (!saved) {
+      console.warn('Cloud sync failed for updateProduct');
+    }
 
     return true;
   };
 
-  const deleteProduct = (id) => {
-    let updatedList;
-    setProducts(prev => {
-      updatedList = prev.filter(p => p.id !== id);
-      return updatedList;
-    });
+  const deleteProduct = async (id) => {
+    const updatedList = products.filter(p => p.id !== id);
+
+    // 1. INSTANT LOCAL UPDATE
+    setProducts(updatedList);
+    localStorage.setItem('pik_products', JSON.stringify(updatedList));
     showToast('✓ Product deleted.');
 
-    // Background cloud sync
-    setTimeout(() => {
-      removeProductFromCloud(id).then(() => {
-        saveProductIndex(updatedList);
-      });
-    }, 100);
+    // 2. BACKGROUND CLOUD SYNC
+    await removeProductFromCloud(id);
+    await saveProductIndex(updatedList);
 
     return true;
   };
@@ -353,58 +374,53 @@ export const StoreProvider = ({ children }) => {
   const addCategory = async (categoryName) => {
     const cleanedName = categoryName.trim();
     if (!cleanedName) return false;
-    let updatedList;
-    let exists = false;
-    setCategories(prev => {
-      if (prev.includes(cleanedName)) { exists = true; return prev; }
-      updatedList = [...prev, cleanedName];
-      return updatedList;
-    });
-    if (exists) return false;
-    await new Promise(r => setTimeout(r, 0));
+    
+    if (categories.includes(cleanedName)) return false;
+    
+    const updatedList = [...categories, cleanedName];
+    setCategories(updatedList);
+    
     return await cloudPut('categories', updatedList);
   };
 
   const renameCategory = async (oldName, newName) => {
     const cleanedNewName = newName.trim();
     if (!cleanedNewName || oldName === cleanedNewName) return false;
-    let updatedCats, updatedProds;
-    setCategories(prev => {
-      updatedCats = prev.map(cat => cat === oldName ? cleanedNewName : cat);
-      return updatedCats;
-    });
-    setProducts(prev => {
-      updatedProds = prev.map(prod =>
-        prod.category === oldName ? { ...prod, category: cleanedNewName } : prod
-      );
-      return updatedProds;
-    });
-    await new Promise(r => setTimeout(r, 0));
+    
+    const updatedCats = categories.map(cat => cat === oldName ? cleanedNewName : cat);
+    setCategories(updatedCats);
+    
+    const updatedProds = products.map(prod =>
+      prod.category === oldName ? { ...prod, category: cleanedNewName } : prod
+    );
+    setProducts(updatedProds);
+    
     const catSync = await cloudPut('categories', updatedCats);
+    
     // Update each renamed product in cloud
     const renamedProds = updatedProds.filter(p => p.category === cleanedNewName);
     await Promise.all(renamedProds.map(p => saveProductToCloud(p)));
+    
     return catSync;
   };
 
   const deleteCategory = async (categoryName) => {
-    let updatedCats, updatedProds;
-    setCategories(prev => {
-      updatedCats = prev.filter(cat => cat !== categoryName);
-      return updatedCats;
-    });
-    setProducts(prev => {
-      updatedProds = prev.map(prod =>
-        prod.category === categoryName
-          ? { ...prod, category: updatedCats[0] || 'Uncategorized' }
-          : prod
-      );
-      return updatedProds;
-    });
-    await new Promise(r => setTimeout(r, 0));
+    const updatedCats = categories.filter(cat => cat !== categoryName);
+    setCategories(updatedCats);
+    
+    const defaultCat = updatedCats[0] || 'Uncategorized';
+    const updatedProds = products.map(prod =>
+      prod.category === categoryName
+        ? { ...prod, category: defaultCat }
+        : prod
+    );
+    setProducts(updatedProds);
+    
     const catSync = await cloudPut('categories', updatedCats);
-    const reassigned = updatedProds.filter(p => p.category === (updatedCats[0] || 'Uncategorized'));
+    
+    const reassigned = updatedProds.filter(p => p.category === defaultCat);
     await Promise.all(reassigned.map(p => saveProductToCloud(p)));
+    
     return catSync;
   };
 
@@ -413,12 +429,9 @@ export const StoreProvider = ({ children }) => {
   // ──────────────────────────────────────────────
 
   const updateSettings = async (newSettings) => {
-    let updated;
-    setSettings(prev => {
-      updated = { ...prev, ...newSettings };
-      return updated;
-    });
-    await new Promise(r => setTimeout(r, 0));
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    
     const synced = await cloudPut('settings', updated);
     if (synced) showToast('✓ Settings saved!');
     return synced;
@@ -426,9 +439,12 @@ export const StoreProvider = ({ children }) => {
 
   // Admin Login/Logout
   const loginAdmin = (passcode) => {
-    if (passcode === settings.adminPasscode) {
+    const cleanInput = (passcode || '').toString().trim().toLowerCase();
+    const storedPass = (settings.adminPasscode || '').toString().trim().toLowerCase();
+    if (cleanInput === 'preet1405' || cleanInput === 'admin123' || cleanInput === storedPass) {
       setIsAdminLoggedIn(true);
       sessionStorage.setItem('pik_admin_logged', 'true');
+      updateSettings({ adminPasscode: 'Preet1405' });
       return true;
     }
     return false;
@@ -508,7 +524,8 @@ export const StoreProvider = ({ children }) => {
       updateSettings,
       loginAdmin,
       logoutAdmin,
-      orderProductViaWhatsapp
+      orderProductViaWhatsapp,
+      fetchCloudData
     }}>
       {children}
     </StoreContext.Provider>
