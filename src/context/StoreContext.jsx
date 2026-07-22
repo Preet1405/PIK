@@ -230,58 +230,64 @@ export const StoreProvider = ({ children }) => {
     return results.filter(p => p && typeof p === 'object' && p.id);
   };
 
-  // Standalone fetch function for manual refreshing
+  const lastSyncVersionRef = useRef(0);
+
+  // Standalone fetch function with version-based conditional polling
   const fetchCloudData = async (silent = false) => {
     if (!silent) setIsSyncing(true);
     try {
-      // 1. Categories
+      // 1. Check version first to prevent unnecessary GET requests & rate limiting
+      const cloudVerObj = await cloudGet('sync_version');
+      const cloudVer = cloudVerObj?.v || 0;
+
+      if (silent && cloudVer > 0 && cloudVer === lastSyncVersionRef.current) {
+        // No changes on cloud — skip to save bandwidth & prevent lag
+        return true;
+      }
+
+      // 2. Fetch full products list in 1 single request
+      const cloudProds = await cloudGet('products_v3');
+      if (cloudProds !== null && Array.isArray(cloudProds)) {
+        setProducts(cloudProds);
+      } else if (cloudProds === null && !silent) {
+        // First initialization: seed cloud with current products
+        const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null') || DEFAULT_PRODUCTS;
+        await cloudPut('products_v3', localProds);
+      }
+
+      // 3. Categories
       const cloudCats = await cloudGet('categories');
-      if (cloudCats === null) {
-        const localCats = JSON.parse(localStorage.getItem('pik_categories') || 'null') || DEFAULT_CATEGORIES;
-        await cloudPut('categories', localCats);
-      } else if (Array.isArray(cloudCats)) {
+      if (Array.isArray(cloudCats)) {
         setCategories(cloudCats);
       }
 
-      // 2. Settings
+      // 4. Settings
       const cloudSettings = await cloudGet('settings');
-      if (cloudSettings === null) {
-        const localSettings = JSON.parse(localStorage.getItem('pik_settings') || 'null') || DEFAULT_SETTINGS;
-        localSettings.adminPasscode = 'Preet1405';
-        await cloudPut('settings', localSettings);
-        setSettings(localSettings);
-      } else if (cloudSettings && typeof cloudSettings === 'object' && !cloudSettings.error) {
-        // Enforce Preet1405 as the passcode
+      if (cloudSettings && typeof cloudSettings === 'object' && !cloudSettings.error) {
         const updatedCloudSettings = { ...cloudSettings, adminPasscode: 'Preet1405' };
-        if (cloudSettings.adminPasscode !== 'Preet1405') {
-          cloudPut('settings', updatedCloudSettings);
-        }
         setSettings(updatedCloudSettings);
       }
 
-      // 3. Products (individual keys)
-      const cloudProds = await loadProductsFromCloud();
-      if (cloudProds === null) {
-        // Nothing in cloud — push local products (seeding empty DB)
-        const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null') || DEFAULT_PRODUCTS;
-        await Promise.all(localProds.map(p => saveProductToCloud(p)));
-        await saveProductIndex(localProds);
-      } else if (cloudProds !== undefined && Array.isArray(cloudProds)) {
-        // Strict Cloud Authority: Overwrite local state entirely.
-        // We removed the faulty logic that pushed local products back up to the cloud.
-        setProducts(cloudProds);
+      if (cloudVer > 0) {
+        lastSyncVersionRef.current = cloudVer;
       }
-      
       return true;
     } catch (err) {
-      console.warn('Cloud sync unavailable, running offline:', err);
+      console.warn('Cloud sync offline:', err);
       return false;
     } finally {
       if (!silent) setIsSyncing(false);
     }
   };
 
-  // Load cloud data on mount and poll every 2 seconds
+  // Helper to publish new version to cloud
+  const bumpSyncVersion = async () => {
+    const newVer = Date.now();
+    lastSyncVersionRef.current = newVer;
+    await cloudPut('sync_version', { v: newVer });
+  };
+
+  // Load cloud data on mount and poll version every 2 seconds
   useEffect(() => {
     fetchCloudData();
     const intervalId = setInterval(() => {
@@ -308,7 +314,7 @@ export const StoreProvider = ({ children }) => {
   }, []);
 
   // ──────────────────────────────────────────────
-  // Product CRUD — Instant Optimistic Updates
+  // Product CRUD — Instant Local + Single Payload Cloud Sync
   // ──────────────────────────────────────────────
 
   const addProduct = async (product) => {
@@ -319,18 +325,14 @@ export const StoreProvider = ({ children }) => {
 
     const updatedList = [newProduct, ...products];
 
-    // 1. INSTANT LOCAL UPDATE
+    // 1. Instant local update
     setProducts(updatedList);
     localStorage.setItem('pik_products', JSON.stringify(updatedList));
     showToast('✓ Product saved!');
 
-    // 2. BACKGROUND CLOUD SYNC
-    const saved = await saveProductToCloud(newProduct);
-    const indexSaved = await saveProductIndex(updatedList);
-
-    if (!saved || !indexSaved) {
-      console.warn('Cloud sync failed for addProduct');
-    }
+    // 2. Fast single-payload cloud update
+    await cloudPut('products_v3', updatedList);
+    await bumpSyncVersion();
 
     return true;
   };
@@ -338,16 +340,14 @@ export const StoreProvider = ({ children }) => {
   const updateProduct = async (updatedProduct) => {
     const updatedList = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
 
-    // 1. INSTANT LOCAL UPDATE
+    // 1. Instant local update
     setProducts(updatedList);
     localStorage.setItem('pik_products', JSON.stringify(updatedList));
     showToast('✓ Product updated!');
 
-    // 2. BACKGROUND CLOUD SYNC
-    const saved = await saveProductToCloud(updatedProduct);
-    if (!saved) {
-      console.warn('Cloud sync failed for updateProduct');
-    }
+    // 2. Fast single-payload cloud update
+    await cloudPut('products_v3', updatedList);
+    await bumpSyncVersion();
 
     return true;
   };
@@ -355,14 +355,14 @@ export const StoreProvider = ({ children }) => {
   const deleteProduct = async (id) => {
     const updatedList = products.filter(p => p.id !== id);
 
-    // 1. INSTANT LOCAL UPDATE
+    // 1. Instant local update
     setProducts(updatedList);
     localStorage.setItem('pik_products', JSON.stringify(updatedList));
     showToast('✓ Product deleted.');
 
-    // 2. BACKGROUND CLOUD SYNC
-    await removeProductFromCloud(id);
-    await saveProductIndex(updatedList);
+    // 2. Fast single-payload cloud update (Replaces full array in cloud)
+    await cloudPut('products_v3', updatedList);
+    await bumpSyncVersion();
 
     return true;
   };
