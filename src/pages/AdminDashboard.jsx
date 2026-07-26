@@ -60,12 +60,12 @@ export default function AdminDashboard() {
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
-          // ── Proportional resize only – NO cropping, full image preserved ──
-          const MAX_DIM = 1000; // max width or height in px
+          // ── High-quality proportional resize – NO cropping ──
+          // 1800px covers 3× retina phones (e.g. iPhone 15 Pro) at ~600px CSS width
+          const MAX_DIM = 1800;
           let width = img.width;
           let height = img.height;
 
-          // Scale down if larger than MAX_DIM, keeping aspect ratio
           if (width > MAX_DIM || height > MAX_DIM) {
             if (width > height) {
               height = Math.round((height * MAX_DIM) / width);
@@ -81,9 +81,13 @@ export default function AdminDashboard() {
           canvas.height = height;
 
           const ctx = canvas.getContext('2d');
+          // imageSmoothingQuality = 'high' uses bicubic interpolation for sharp downscaling
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
 
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          // 0.93 quality – visually lossless, sharp on all retina / HiDPI screens
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.93);
           setProductForm(prev => ({
             ...prev,
             imageUrls: [...prev.imageUrls, compressedDataUrl]
