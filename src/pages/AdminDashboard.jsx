@@ -55,14 +55,27 @@ export default function AdminDashboard() {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
+    const SIZE_LIMIT_BYTES = 4 * 1024 * 1024; // 4 MB
+    const MAX_DIM = 2500; // only resize if pixel size exceeds this
+
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = (event) => {
+        const originalDataUrl = event.target.result;
+
+        // ── Strategy: use original if small enough (zero quality loss) ──
+        if (file.size <= SIZE_LIMIT_BYTES) {
+          // File is already small — store original with NO canvas re-encoding
+          setProductForm(prev => ({
+            ...prev,
+            imageUrls: [...prev.imageUrls, originalDataUrl]
+          }));
+          return;
+        }
+
+        // ── Only for large files: proportional resize + gentle compression ──
         const img = new Image();
         img.onload = () => {
-          // ── High-quality proportional resize – NO cropping ──
-          // 1800px covers 3× retina phones (e.g. iPhone 15 Pro) at ~600px CSS width
-          const MAX_DIM = 1800;
           let width = img.width;
           let height = img.height;
 
@@ -81,19 +94,18 @@ export default function AdminDashboard() {
           canvas.height = height;
 
           const ctx = canvas.getContext('2d');
-          // imageSmoothingQuality = 'high' uses bicubic interpolation for sharp downscaling
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
 
-          // 0.93 quality – visually lossless, sharp on all retina / HiDPI screens
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.93);
+          // 0.95 — near-lossless for large files that need resizing
+          const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
           setProductForm(prev => ({
             ...prev,
-            imageUrls: [...prev.imageUrls, compressedDataUrl]
+            imageUrls: [...prev.imageUrls, resizedDataUrl]
           }));
         };
-        img.src = event.target.result;
+        img.src = originalDataUrl;
       };
       reader.readAsDataURL(file);
     });
