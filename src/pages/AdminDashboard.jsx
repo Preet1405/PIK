@@ -60,30 +60,30 @@ export default function AdminDashboard() {
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
-          // ── Auto-crop: center-fill a square canvas at 600px ──
-          const OUTPUT_SIZE = 600; // px per side – balances quality vs. cloud size
+          // ── Proportional resize only – NO cropping, full image preserved ──
+          const MAX_DIM = 1000; // max width or height in px
+          let width = img.width;
+          let height = img.height;
+
+          // Scale down if larger than MAX_DIM, keeping aspect ratio
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
           const canvas = document.createElement('canvas');
-          canvas.width = OUTPUT_SIZE;
-          canvas.height = OUTPUT_SIZE;
+          canvas.width = width;
+          canvas.height = height;
 
           const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
 
-          // Fill background so transparent PNGs look clean
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-
-          // Center-crop: pick the largest square that fits the source image
-          const srcSize = Math.min(img.width, img.height);
-          const srcX = (img.width - srcSize) / 2;
-          const srcY = (img.height - srcSize) / 2;
-
-          ctx.drawImage(
-            img,
-            srcX, srcY, srcSize, srcSize, // source square (centered)
-            0, 0, OUTPUT_SIZE, OUTPUT_SIZE  // fill destination
-          );
-
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
           setProductForm(prev => ({
             ...prev,
             imageUrls: [...prev.imageUrls, compressedDataUrl]

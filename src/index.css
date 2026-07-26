@@ -1309,13 +1309,16 @@ main {
 .product-detail-main-img-container {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
   overflow: hidden;
   border-radius: var(--radius-lg) 0 0 0;
   background: var(--bg-tertiary);
   cursor: zoom-in;
   background-size: 200%;
   background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
 }
 
 /* When zoom is active the actual img is hidden; the CSS bg-image shows zoomed view */
@@ -1325,8 +1328,9 @@ main {
 
 .product-detail-main-img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;           /* ← auto-crops & fills the square frame */
+  height: auto;
+  max-height: 560px;
+  object-fit: contain;          /* ← show full image, no cropping */
   object-position: center;
   display: block;
   transition: opacity 0.2s ease;
