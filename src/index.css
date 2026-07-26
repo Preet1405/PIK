@@ -1309,36 +1309,156 @@ main {
 .product-detail-main-img-container {
   position: relative;
   width: 100%;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   border-radius: var(--radius-lg) 0 0 0;
+  background: var(--bg-tertiary);
+  cursor: zoom-in;
+  background-size: 200%;
+  background-repeat: no-repeat;
+}
+
+/* When zoom is active the actual img is hidden; the CSS bg-image shows zoomed view */
+.product-detail-main-img-container.zoomed {
+  cursor: crosshair;
 }
 
 .product-detail-main-img {
   width: 100%;
-  max-height: 550px;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;           /* ← auto-crops & fills the square frame */
+  object-position: center;
   display: block;
-  transition: var(--transition-smooth);
+  transition: opacity 0.2s ease;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
+.product-detail-main-img.zoom-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Image nav arrows ── */
+.img-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.45);
+  border: none;
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s ease, transform 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.img-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.img-nav-prev { left: 10px; }
+.img-nav-next { right: 10px; }
+
+/* ── Zoom button ── */
+.img-zoom-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: none;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s ease, transform 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.img-zoom-btn:hover {
+  background: var(--accent-coral);
+  transform: scale(1.1);
+}
+
+/* ── Dot indicators ── */
+.img-dot-indicators {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 10;
+}
+
+.img-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.img-dot.active {
+  background: var(--accent-coral);
+  transform: scale(1.3);
+}
+
+/* ── Hover-zoom hint ── */
+.img-zoom-hint {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.35);
+  padding: 3px 7px;
+  border-radius: 20px;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  letter-spacing: 0.3px;
+}
+
+/* ── Scrollable thumbnail strip ── */
 .product-detail-thumbnails {
   display: flex;
   gap: 0.75rem;
-  padding: 1rem 1.5rem;
+  padding: 0.9rem 1.25rem;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
-  justify-content: center;
-  flex-wrap: wrap;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
+.product-detail-thumbnails::-webkit-scrollbar { display: none; }
+
 .product-detail-thumbnail-img {
-  width: 60px;
-  height: 60px;
+  width: 64px;
+  height: 64px;
   object-fit: cover;
   border-radius: var(--radius-sm);
   cursor: pointer;
   border: 2px solid transparent;
   transition: var(--transition-smooth);
+  flex-shrink: 0;
+  scroll-snap-align: center;
 }
 
 .product-detail-thumbnail-img:hover {
@@ -1348,6 +1468,104 @@ main {
 
 .product-detail-thumbnail-img.active {
   border-color: var(--accent-coral);
+  transform: scale(1.05);
+}
+
+/* ══════════════════════════════════════════
+   FULLSCREEN LIGHTBOX
+══════════════════════════════════════════ */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+  backdrop-filter: blur(8px);
+  padding: 1rem;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 9010;
+  transition: background 0.2s ease;
+}
+
+.lightbox-close:hover { background: rgba(239, 68, 68, 0.7); }
+
+.lightbox-inner {
+  position: relative;
+  max-width: min(92vw, 900px);
+  max-height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-img {
+  max-width: 100%;
+  max-height: 88vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  animation: scaleIn 0.2s ease;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.92); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 9010;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.lightbox-nav:hover {
+  background: rgba(255,255,255,0.25);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.lightbox-prev { left: -64px; }
+.lightbox-next { right: -64px; }
+
+.lightbox-counter {
+  position: absolute;
+  bottom: -36px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255,255,255,0.7);
+  font-size: 0.85rem;
+  letter-spacing: 1px;
 }
 
 .product-detail-details {
@@ -1446,23 +1664,23 @@ main {
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 
+  /* aspect-ratio handles sizing; override forces reasonable max height on small screens */
   .product-detail-main-img {
-    max-height: 350px;
+    max-height: none;
   }
 
   .product-detail-thumbnails {
     padding: 0.75rem 1rem;
-    justify-content: flex-start;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   .product-detail-thumbnail-img {
     width: 54px;
     height: 54px;
-    flex-shrink: 0;
   }
+
+  /* Lightbox nav arrows stay inside the image on small screens */
+  .lightbox-prev { left: 8px; }
+  .lightbox-next { right: 8px; }
 
   .product-detail-details {
     padding: 1.5rem 1rem;

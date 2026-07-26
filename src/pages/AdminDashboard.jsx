@@ -60,30 +60,30 @@ export default function AdminDashboard() {
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
+          // ── Auto-crop: center-fill a square canvas at 600px ──
+          const OUTPUT_SIZE = 600; // px per side – balances quality vs. cloud size
           const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const maxDimension = 450; // Keep base64 small for fast cloud sync
-
-          if (width > height) {
-            if (width > maxDimension) {
-              height = Math.round((height * maxDimension) / width);
-              width = maxDimension;
-            }
-          } else {
-            if (height > maxDimension) {
-              width = Math.round((width * maxDimension) / height);
-              height = maxDimension;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width = OUTPUT_SIZE;
+          canvas.height = OUTPUT_SIZE;
 
           const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
 
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.45);
+          // Fill background so transparent PNGs look clean
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+
+          // Center-crop: pick the largest square that fits the source image
+          const srcSize = Math.min(img.width, img.height);
+          const srcX = (img.width - srcSize) / 2;
+          const srcY = (img.height - srcSize) / 2;
+
+          ctx.drawImage(
+            img,
+            srcX, srcY, srcSize, srcSize, // source square (centered)
+            0, 0, OUTPUT_SIZE, OUTPUT_SIZE  // fill destination
+          );
+
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
           setProductForm(prev => ({
             ...prev,
             imageUrls: [...prev.imageUrls, compressedDataUrl]
@@ -565,9 +565,10 @@ export default function AdminDashboard() {
                         <label className="upload-dropzone">
                           <UploadCloud className="upload-dropzone-icon" size={32} />
                           <div>
-                            <p style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)' }}>Click to browse your gallery</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>PNG, JPG or JPEG up to 5MB (Select multiple)</p>
+                            <p style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)' }}>Tap to open Gallery &amp; pick photos</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Images are auto-cropped &amp; fitted. Select multiple.</p>
                           </div>
+                          {/* No `capture` attribute → opens Gallery/Files picker by default on mobile */}
                           <input
                             type="file"
                             accept="image/*"
