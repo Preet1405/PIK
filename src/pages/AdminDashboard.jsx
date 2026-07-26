@@ -50,65 +50,107 @@ export default function AdminDashboard() {
   // Saving state to block UI during database sync operations
   const [isSaving, setIsSaving] = useState(false);
 
-  // Local helper to read and compress file uploads (supports multiple)
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+  // GitHub image token (stored in localStorage, NOT cloud — stays on this device only)
+  const [githubToken, setGithubToken] = useState(() => localStorage.getItem('pik_gh_token') || '');
 
-    const SIZE_LIMIT_BYTES = 4 * 1024 * 1024; // 4 MB
-    const MAX_DIM = 2500; // only resize if pixel size exceeds this
-
-    files.forEach(file => {
+  // ─────────────────────────────────────────────────────────────────
+  // GITHUB IMAGE UPLOAD — stores images at FULL original quality
+  // Images are committed to the GitHub repo and served from GitHub CDN.
+  // No base64 compression at all — the URL (not the image data) is stored in kvdb.io.
+  // ─────────────────────────────────────────────────────────────────
+  const uploadImageToGitHub = (file, token) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const originalDataUrl = event.target.result;
+      reader.onload = async (event) => {
+        // Strip the "data:image/...;base64," prefix to get raw base64 for GitHub API
+        const base64Content = event.target.result.split(',')[1];
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const filename = `img_${Date.now()}.${ext}`;
 
-        // ── Strategy: use original if small enough (zero quality loss) ──
-        if (file.size <= SIZE_LIMIT_BYTES) {
-          // File is already small — store original with NO canvas re-encoding
-          setProductForm(prev => ({
-            ...prev,
-            imageUrls: [...prev.imageUrls, originalDataUrl]
-          }));
-          return;
-        }
-
-        // ── Only for large files: proportional resize + gentle compression ──
-        const img = new Image();
-        img.onload = () => {
-          let width = img.width;
-          let height = img.height;
-
-          if (width > MAX_DIM || height > MAX_DIM) {
-            if (width > height) {
-              height = Math.round((height * MAX_DIM) / width);
-              width = MAX_DIM;
-            } else {
-              width = Math.round((width * MAX_DIM) / height);
-              height = MAX_DIM;
+        try {
+          const res = await fetch(
+            `https://api.github.com/repos/Preet1405/PIK/contents/public/images/${filename}`,
+            {
+              method: 'PUT',
+              headers: {
+                Authorization: `token ${token}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/vnd.github.v3+json'
+              },
+              body: JSON.stringify({
+                message: `Upload product image: ${filename}`,
+                content: base64Content
+              })
             }
+          );
+
+          if (res.ok) {
+            // raw.githubusercontent.com serves the file directly from the repo
+            resolve(`https://raw.githubusercontent.com/Preet1405/PIK/main/public/images/${filename}`);
+          } else {
+            console.warn('GitHub upload failed:', res.status, await res.text());
+            resolve(null); // will fall back to local compression
           }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // 0.95 — near-lossless for large files that need resizing
-          const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-          setProductForm(prev => ({
-            ...prev,
-            imageUrls: [...prev.imageUrls, resizedDataUrl]
-          }));
-        };
-        img.src = originalDataUrl;
+        } catch (err) {
+          console.warn('GitHub upload error:', err);
+          resolve(null);
+        }
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  // ── Fallback local compression — used when no GitHub token is set ──
+  const processFileLocally = (file) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // 720px max keeps base64 under ~70KB so cloud sync stays stable
+        const MAX_DIM = 720;
+        let w = img.width, h = img.height;
+        if (w > MAX_DIM || h > MAX_DIM) {
+          if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
+          else { w = Math.round((w * MAX_DIM) / h); h = MAX_DIM; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setProductForm(prev => ({ ...prev, imageUrls: [...prev.imageUrls, dataUrl] }));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Main image upload handler — uses GitHub if token is set, local fallback otherwise
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    const token = localStorage.getItem('pik_gh_token');
+
+    if (token) {
+      setIsSaving(true);
+      for (const file of files) {
+        const url = await uploadImageToGitHub(file, token);
+        if (url) {
+          // Success — full quality GitHub URL stored (tiny, no compression)
+          setProductForm(prev => ({ ...prev, imageUrls: [...prev.imageUrls, url] }));
+        } else {
+          // GitHub upload failed — fall back to local compression
+          processFileLocally(file);
+        }
+      }
+      setIsSaving(false);
+    } else {
+      // No GitHub token — use local compression
+      files.forEach(file => processFileLocally(file));
+    }
   };
 
   // Forms States
@@ -882,6 +924,40 @@ export default function AdminDashboard() {
                     className="form-control"
                     required
                   />
+                </div>
+
+                {/* GitHub Image Token — enables full-quality, no-compression image uploads */}
+                <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', marginTop: '2rem', paddingTop: '1.5rem' }}>
+                  <label className="form-label" style={{ color: 'var(--accent-coral)', fontSize: '0.95rem' }}>
+                    🖼️ GitHub Image Token — Crystal-Clear Photos
+                  </label>
+                  <input
+                    type="password"
+                    value={githubToken}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setGithubToken(val);
+                      localStorage.setItem('pik_gh_token', val);
+                    }}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    className="form-control"
+                  />
+                  <div style={{ marginTop: '0.75rem', padding: '0.875rem 1rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.65' }}>
+                    {githubToken ? (
+                      <span style={{ color: 'var(--accent-whatsapp)' }}>
+                        ✅ Token active — new image uploads will be stored at <strong>100% original quality</strong> on GitHub CDN.
+                      </span>
+                    ) : (
+                      <>
+                        <strong style={{ color: 'var(--text-secondary)' }}>One-time setup for HD images (no blur ever):</strong><br />
+                        1. Open <strong>github.com/settings/tokens</strong><br />
+                        2. Click <strong>Generate new token (classic)</strong><br />
+                        3. Select scope: <strong>repo</strong> (full control)<br />
+                        4. Click Generate → copy the <strong>ghp_...</strong> token<br />
+                        5. Paste it above and save. Done! 🎉
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1.5rem' }} disabled={isSaving}>
