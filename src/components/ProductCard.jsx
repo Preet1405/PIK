@@ -44,11 +44,13 @@ export default function ProductCard({ product, onViewDetails }) {
           <button
             onClick={handleOrder}
             className="btn btn-whatsapp"
-            style={{ width: 'auto', padding: '0.5rem 1rem' }}
+            style={{ width: 'auto', padding: '0.5rem 1rem', opacity: product.inStock ? 1 : 0.65 }}
             disabled={!product.inStock}
           >
             <MessageSquare size={16} />
-            <span className="product-card-btn-text">Order</span>
+            <span className="product-card-btn-text">
+              {product.inStock ? 'Order' : 'Out of Stock'}
+            </span>
           </button>
         </div>
       </div>

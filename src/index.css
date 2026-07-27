@@ -552,8 +552,10 @@ main {
 }
 
 .product-card-badge.out-of-stock {
-  color: var(--text-muted);
-  border-color: var(--border-color);
+  background: rgba(239, 68, 68, 0.9);
+  color: #ffffff;
+  border-color: rgba(239, 68, 68, 1);
+  font-weight: 700;
 }
 
 .product-card-info {
