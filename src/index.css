@@ -1685,22 +1685,35 @@ main {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
   .product-detail-image-wrap {
     width: 100% !important;
     border-right: none !important;
     border-bottom: 1px solid var(--border-color) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
   }
 
   .product-detail-main-img-container {
     height: 360px !important;
     width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: var(--bg-tertiary) !important;
   }
 
   .product-detail-main-img {
+    max-width: 100% !important;
     max-height: 340px !important;
-    width: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    display: block !important;
+    object-fit: contain !important;
   }
 
   .product-detail-details {
@@ -1710,61 +1723,68 @@ main {
     flex: 1 1 100% !important;
     display: flex !important;
     flex-direction: column !important;
+    overflow: hidden !important;
   }
 
   .product-detail-category {
     font-size: 0.85rem !important;
     margin-bottom: 0.5rem !important;
+    word-break: break-word !important;
   }
 
   .product-detail-title {
-    font-size: 2.1rem !important;
+    font-size: 1.85rem !important;
     font-weight: 700 !important;
     line-height: 1.25 !important;
-    margin-bottom: 1.25rem !important;
+    margin-bottom: 1rem !important;
+    word-break: break-word !important;
+    width: 100% !important;
   }
 
   .product-detail-price-wrap {
-    padding: 0.85rem 1.25rem !important;
-    margin-bottom: 1.5rem !important;
+    padding: 0.75rem 1rem !important;
+    margin-bottom: 1.25rem !important;
     width: 100% !important;
     box-sizing: border-box !important;
   }
 
   .product-detail-price {
-    font-size: 2.1rem !important;
+    font-size: 1.85rem !important;
     font-weight: 700 !important;
   }
 
   .product-detail-desc {
-    font-size: 1.05rem !important;
-    line-height: 1.65 !important;
-    margin-bottom: 1.5rem !important;
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+    margin-bottom: 1.25rem !important;
+    word-break: break-word !important;
   }
 
   .product-detail-action-wrap {
     width: 100% !important;
-    margin-top: 1.5rem !important;
+    margin-top: 1.25rem !important;
+    margin-bottom: 1rem !important;
   }
 
   .product-detail-action-wrap .btn-whatsapp {
     width: 100% !important;
-    padding: 1rem 1.25rem !important;
-    font-size: 1.1rem !important;
+    padding: 0.9rem 1rem !important;
+    font-size: 1.05rem !important;
     font-weight: 700 !important;
     border-radius: var(--radius-md) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 0.75rem !important;
+    gap: 0.6rem !important;
     box-shadow: 0 4px 14px rgba(37, 211, 102, 0.35) !important;
+    box-sizing: border-box !important;
   }
 }
 
 @media (max-width: 768px) {
   .product-detail-container {
-    padding: 0 0.75rem !important;
-    margin: 0.75rem auto !important;
+    padding: 0 0.5rem !important;
+    margin: 0.5rem auto 3rem auto !important;
     width: 100% !important;
     box-sizing: border-box !important;
   }
@@ -1772,6 +1792,7 @@ main {
   .back-to-shop-btn {
     margin-bottom: 0.75rem !important;
     font-size: 0.9rem !important;
+    padding: 0.4rem 0.5rem !important;
   }
 
   .product-detail-main-img-container {
@@ -1784,8 +1805,10 @@ main {
   }
 
   .product-detail-thumbnails {
-    padding: 0.6rem 0.75rem !important;
+    padding: 0.6rem 0.5rem !important;
     gap: 0.5rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .product-detail-thumbnail-img {
@@ -1793,25 +1816,21 @@ main {
     height: 52px !important;
   }
 
-  /* Lightbox nav arrows stay inside the image on small screens */
-  .lightbox-prev { left: 8px !important; }
-  .lightbox-next { right: 8px !important; }
-
   .product-detail-details {
-    padding: 1.5rem 1rem !important;
+    padding: 1.25rem 1rem !important;
   }
 
   .product-detail-title {
-    font-size: 1.95rem !important;
+    font-size: 1.75rem !important;
   }
 
   .product-detail-price {
-    font-size: 1.95rem !important;
+    font-size: 1.75rem !important;
   }
 
   .product-detail-desc {
-    font-size: 1rem !important;
-    margin-bottom: 1.25rem !important;
+    font-size: 0.95rem !important;
+    margin-bottom: 1rem !important;
   }
 }
 
