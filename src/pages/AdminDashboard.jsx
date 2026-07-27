@@ -138,6 +138,9 @@ export default function AdminDashboard() {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
+    // Reset input value to allow unlimited photo picks
+    e.target.value = '';
+
     const token = localStorage.getItem('pik_gh_token');
 
     if (token) {
@@ -255,6 +258,11 @@ export default function AdminDashboard() {
     
     const validImageUrls = (productForm.imageUrls || []).filter(Boolean);
     const primaryImageUrl = validImageUrls[0] || productForm.imageUrl || '';
+
+    if (!primaryImageUrl) {
+      alert('Please upload or select at least one photo for the product before saving.');
+      return;
+    }
 
     const finalForm = {
       ...productForm,
