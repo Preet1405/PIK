@@ -171,7 +171,7 @@ const sanitizeForCloud = (productList) => {
         if (url.startsWith('data:image/') && url.length <= MAX_B64_CHARS) {
           return url;
         }
-        console.warn(`[PIK] Base64 image (${Math.round(url.length/1024)}KB) exceeds cloud budget for "${product.name}".`);
+        console.warn(`[PIK] Base64 image (${Math.round(url.length / 1024)}KB) exceeds cloud budget for "${product.name}".`);
         return null;
       })
       .filter(Boolean);
@@ -375,13 +375,13 @@ export const StoreProvider = ({ children }) => {
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'pik_products' && e.newValue) {
-        try { setProducts(JSON.parse(e.newValue)); } catch (err) {}
+        try { setProducts(JSON.parse(e.newValue)); } catch (err) { }
       }
       if (e.key === 'pik_categories' && e.newValue) {
-        try { setCategories(JSON.parse(e.newValue)); } catch (err) {}
+        try { setCategories(JSON.parse(e.newValue)); } catch (err) { }
       }
       if (e.key === 'pik_settings' && e.newValue) {
-        try { setSettings(JSON.parse(e.newValue)); } catch (err) {}
+        try { setSettings(JSON.parse(e.newValue)); } catch (err) { }
       }
     };
     window.addEventListener('storage', handleStorageChange);
@@ -407,9 +407,11 @@ export const StoreProvider = ({ children }) => {
 
     showToast('✓ Product saved!');
 
-    // 2. Cloud update — sanitized payload
-    await cloudPut('products_v3', sanitizeForCloud(updatedList));
-    await bumpSyncVersion();
+    // Non-blocking background cloud update
+    const sanitized = sanitizeForCloud(updatedList);
+    cloudPut('products_v3', sanitized).then(() => {
+      bumpSyncVersion();
+    });
 
     return true;
   };
@@ -424,9 +426,11 @@ export const StoreProvider = ({ children }) => {
 
     showToast('✓ Product updated!');
 
-    // 2. Cloud update — sanitized payload
-    await cloudPut('products_v3', sanitizeForCloud(updatedList));
-    await bumpSyncVersion();
+    // Non-blocking background cloud update
+    const sanitized = sanitizeForCloud(updatedList);
+    cloudPut('products_v3', sanitized).then(() => {
+      bumpSyncVersion();
+    });
 
     return true;
   };
@@ -441,9 +445,11 @@ export const StoreProvider = ({ children }) => {
 
     showToast('✓ Product deleted.');
 
-    // 2. Cloud update — sanitized payload
-    await cloudPut('products_v3', sanitizeForCloud(updatedList));
-    await bumpSyncVersion();
+    // Non-blocking background cloud update — instant 0ms deletion
+    const sanitized = sanitizeForCloud(updatedList);
+    cloudPut('products_v3', sanitized).then(() => {
+      bumpSyncVersion();
+    });
 
     return true;
   };
@@ -455,40 +461,40 @@ export const StoreProvider = ({ children }) => {
   const addCategory = async (categoryName) => {
     const cleanedName = categoryName.trim();
     if (!cleanedName) return false;
-    
+
     if (categories.includes(cleanedName)) return false;
-    
+
     const updatedList = [...categories, cleanedName];
     setCategories(updatedList);
-    
+
     return await cloudPut('categories', updatedList);
   };
 
   const renameCategory = async (oldName, newName) => {
     const cleanedNewName = newName.trim();
     if (!cleanedNewName || oldName === cleanedNewName) return false;
-    
+
     const updatedCats = categories.map(cat => cat === oldName ? cleanedNewName : cat);
     setCategories(updatedCats);
-    
+
     const updatedProds = products.map(prod =>
       prod.category === oldName ? { ...prod, category: cleanedNewName } : prod
     );
     setProducts(updatedProds);
-    
+
     const catSync = await cloudPut('categories', updatedCats);
-    
+
     // Update each renamed product in cloud
     const renamedProds = updatedProds.filter(p => p.category === cleanedNewName);
     await Promise.all(renamedProds.map(p => saveProductToCloud(p)));
-    
+
     return catSync;
   };
 
   const deleteCategory = async (categoryName) => {
     const updatedCats = categories.filter(cat => cat !== categoryName);
     setCategories(updatedCats);
-    
+
     const defaultCat = updatedCats[0] || 'Uncategorized';
     const updatedProds = products.map(prod =>
       prod.category === categoryName
@@ -496,12 +502,12 @@ export const StoreProvider = ({ children }) => {
         : prod
     );
     setProducts(updatedProds);
-    
+
     const catSync = await cloudPut('categories', updatedCats);
-    
+
     const reassigned = updatedProds.filter(p => p.category === defaultCat);
     await Promise.all(reassigned.map(p => saveProductToCloud(p)));
-    
+
     return catSync;
   };
 
@@ -512,7 +518,7 @@ export const StoreProvider = ({ children }) => {
   const updateSettings = async (newSettings) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
-    
+
     const synced = await cloudPut('settings', updated);
     if (synced) showToast('✓ Settings saved!');
     return synced;
@@ -573,12 +579,12 @@ export const StoreProvider = ({ children }) => {
     const isWebImage = product.imageUrl && (product.imageUrl.startsWith('http') || product.imageUrl.startsWith('//'));
     const photoLine = isWebImage ? `*Product Photo:* ${product.imageUrl}\n` : '';
     const message = `Hello! I would like to order this product from *${settings.storeName}*:\n\n` +
-                    `*Product Name:* ${product.name}\n` +
-                    `*Category:* ${product.category}\n` +
-                    `*Price:* ${settings.currency}${product.price.toLocaleString()}\n` +
-                    `*Details:* ${product.description}\n` +
-                    photoLine + '\n' +
-                    `Please let me know its availability and payment/delivery details. Thank you!`;
+      `*Product Name:* ${product.name}\n` +
+      `*Category:* ${product.category}\n` +
+      `*Price:* ${settings.currency}${product.price.toLocaleString()}\n` +
+      `*Details:* ${product.description}\n` +
+      photoLine + '\n' +
+      `Please let me know its availability and payment/delivery details. Thank you!`;
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${cleanNumber}?text=${encodedMessage}`;
     if (copied) {
