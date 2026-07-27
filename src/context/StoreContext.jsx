@@ -125,7 +125,6 @@ const cloudPut = async (key, data, retries = 1) => {
       body: JSON.stringify(payload)
     });
     if (res.ok) {
-      // Silently sync fallback KV in background
       fetch(KVDB_FALLBACK_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -134,7 +133,7 @@ const cloudPut = async (key, data, retries = 1) => {
       return true;
     }
   } catch (err) {
-    console.warn('[PIK Sync] Primary cloud PUT failed, using fallback:', err);
+    console.warn('[PIK Sync] Primary cloud PUT failed:', err);
   }
 
   // Fallback Endpoint (kvdb)
@@ -152,7 +151,7 @@ const cloudPut = async (key, data, retries = 1) => {
   return false;
 };
 
-// Dual-backend cloud helper — GET with automatic failover
+// Dual-backend cloud helper — GET with automatic failover & static /data/store.json seed
 const cloudGet = async () => {
   // Primary Endpoint (restful-api.dev)
   try {
@@ -164,15 +163,29 @@ const cloudGet = async () => {
       }
     }
   } catch (err) {
-    console.warn('[PIK Sync] Primary cloud GET failed, using fallback:', err);
+    console.warn('[PIK Sync] Primary cloud GET failed:', err);
   }
 
   // Fallback Endpoint (kvdb)
   try {
     const res = await fetch(`${KVDB_FALLBACK_URL}?t=${Date.now()}`);
-    if (res.ok) return await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object' && data.v) return data;
+    }
   } catch (err) {
     console.warn('[PIK Sync] Secondary cloud GET failed:', err);
+  }
+
+  // Final Unbreakable Seed: static /data/store.json from CDN/Host (Zero Rate Limits!)
+  try {
+    const res = await fetch(`/data/store.json?t=${Date.now()}`);
+    if (res.ok) {
+      const staticData = await res.json();
+      if (staticData && staticData.v) return staticData;
+    }
+  } catch (err) {
+    console.warn('[PIK Sync] Static store.json GET failed:', err);
   }
 
   return null;
