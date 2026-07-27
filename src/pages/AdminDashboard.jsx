@@ -104,23 +104,47 @@ export default function AdminDashboard() {
   const processFileLocally = (file) => {
     const reader = new FileReader();
     reader.onload = (event) => {
+      const rawResult = event.target.result;
       const img = new Image();
       img.onload = () => {
-        const MAX_DIM = 650;
-        let w = img.width, h = img.height;
-        if (w > MAX_DIM || h > MAX_DIM) {
-          if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
-          else { w = Math.round((w * MAX_DIM) / h); h = MAX_DIM; }
+        try {
+          const MAX_DIM = 650;
+          let w = img.width, h = img.height;
+          if (w > MAX_DIM || h > MAX_DIM) {
+            if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
+            else { w = Math.round((w * MAX_DIM) / h); h = MAX_DIM; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.70);
+          setProductForm(prev => {
+            const updatedUrls = [...prev.imageUrls, dataUrl];
+            return {
+              ...prev,
+              imageUrl: prev.imageUrl || updatedUrls[0],
+              imageUrls: updatedUrls
+            };
+          });
+        } catch (e) {
+          // Canvas error fallback
+          setProductForm(prev => {
+            const updatedUrls = [...prev.imageUrls, rawResult];
+            return {
+              ...prev,
+              imageUrl: prev.imageUrl || updatedUrls[0],
+              imageUrls: updatedUrls
+            };
+          });
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.70);
+      };
+      img.onerror = () => {
+        // Fallback for phone media formats (HEIC/WebP/raw)
         setProductForm(prev => {
-          const updatedUrls = [...prev.imageUrls, dataUrl];
+          const updatedUrls = [...prev.imageUrls, rawResult];
           return {
             ...prev,
             imageUrl: prev.imageUrl || updatedUrls[0],
@@ -128,7 +152,7 @@ export default function AdminDashboard() {
           };
         });
       };
-      img.src = event.target.result;
+      img.src = rawResult;
     };
     reader.readAsDataURL(file);
   };
@@ -256,7 +280,15 @@ export default function AdminDashboard() {
     e.preventDefault();
     const parsedPrice = parseFloat(productForm.price) || 0;
     
-    const validImageUrls = (productForm.imageUrls || []).filter(Boolean);
+    // Auto-capture URL input if user pasted text into URL box
+    const urlInput = document.getElementById('webImageUrlInput');
+    const pastedUrl = urlInput ? urlInput.value.trim() : '';
+
+    let validImageUrls = (productForm.imageUrls || []).filter(Boolean);
+    if (pastedUrl && !validImageUrls.includes(pastedUrl)) {
+      validImageUrls = [pastedUrl, ...validImageUrls];
+    }
+
     const primaryImageUrl = validImageUrls[0] || productForm.imageUrl || '';
 
     if (!primaryImageUrl) {
