@@ -8,11 +8,17 @@ export default function ProductModal({ product, onClose }) {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isLightboxZoomed, setIsLightboxZoomed] = useState(false);
 
   // Touch/swipe state
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const thumbnailsRef = useRef(null);
+
+  // Reset lightbox zoom when changing images
+  useEffect(() => {
+    setIsLightboxZoomed(false);
+  }, [activeImgIndex, isLightboxOpen]);
 
   if (!product) return null;
 
@@ -95,17 +101,21 @@ export default function ProductModal({ product, onClose }) {
         <div className="product-detail-grid">
           {/* ─── Image Column ─── */}
           <div className="product-detail-image-wrap">
-            {/* Main Image with swipe support */}
+            {/* Main Image with tap-to-zoom & swipe support */}
             <div
               className={`product-detail-main-img-container ${isZoomed ? 'zoomed' : ''}`}
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
               onMouseMove={handleMouseMove}
               onMouseLeave={() => setIsZoomed(false)}
-              style={isZoomed ? {
-                backgroundImage: `url(${activeImage})`,
-                backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
-              } : {}}
+              onClick={() => setIsLightboxOpen(true)}
+              style={{
+                cursor: 'zoom-in',
+                ...(isZoomed ? {
+                  backgroundImage: `url(${activeImage})`,
+                  backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
+                } : {})
+              }}
             >
               <img
                 src={activeImage}
@@ -118,14 +128,14 @@ export default function ProductModal({ product, onClose }) {
                 <>
                   <button
                     className="img-nav-btn img-nav-prev"
-                    onClick={goPrev}
+                    onClick={(e) => { e.stopPropagation(); goPrev(); }}
                     aria-label="Previous image"
                   >
                     <ChevronLeft size={22} />
                   </button>
                   <button
                     className="img-nav-btn img-nav-next"
-                    onClick={goNext}
+                    onClick={(e) => { e.stopPropagation(); goNext(); }}
                     aria-label="Next image"
                   >
                     <ChevronRight size={22} />
@@ -136,7 +146,7 @@ export default function ProductModal({ product, onClose }) {
               {/* Zoom / Expand button */}
               <button
                 className="img-zoom-btn"
-                onClick={() => setIsLightboxOpen(true)}
+                onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(true); }}
                 title="Zoom image"
                 aria-label="Open full-screen image"
               >
@@ -145,7 +155,7 @@ export default function ProductModal({ product, onClose }) {
 
               {/* Dot indicators */}
               {images.length > 1 && (
-                <div className="img-dot-indicators">
+                <div className="img-dot-indicators" onClick={(e) => e.stopPropagation()}>
                   {images.map((_, idx) => (
                     <button
                       key={idx}
@@ -157,12 +167,12 @@ export default function ProductModal({ product, onClose }) {
                 </div>
               )}
 
-              {/* Hover-zoom hint */}
+              {/* Tap to zoom hint */}
               <div
                 className="img-zoom-hint"
-                onMouseEnter={() => setIsZoomed(true)}
+                onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(true); }}
               >
-                🔍 Hover to zoom
+                🔍 Tap / Click to zoom
               </div>
             </div>
 
@@ -211,7 +221,7 @@ export default function ProductModal({ product, onClose }) {
         </div>
       </div>
 
-      {/* ─── Fullscreen Lightbox ─── */}
+      {/* ─── Fullscreen Lightbox / Zoom View ─── */}
       {isLightboxOpen && (
         <div
           className="lightbox-overlay"
@@ -234,21 +244,30 @@ export default function ProductModal({ product, onClose }) {
             <img
               src={activeImage}
               alt={product.name}
-              className="lightbox-img"
+              className={`lightbox-img ${isLightboxZoomed ? 'lightbox-img-zoomed' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsLightboxZoomed(prev => !prev);
+              }}
+              style={{
+                cursor: isLightboxZoomed ? 'zoom-out' : 'zoom-in',
+                transition: 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+                transform: isLightboxZoomed ? 'scale(1.85)' : 'scale(1)'
+              }}
             />
 
             {images.length > 1 && (
               <>
                 <button
                   className="lightbox-nav lightbox-prev"
-                  onClick={goPrev}
+                  onClick={(e) => { e.stopPropagation(); goPrev(); }}
                   aria-label="Previous image"
                 >
                   <ChevronLeft size={28} />
                 </button>
                 <button
                   className="lightbox-nav lightbox-next"
-                  onClick={goNext}
+                  onClick={(e) => { e.stopPropagation(); goNext(); }}
                   aria-label="Next image"
                 >
                   <ChevronRight size={28} />
@@ -256,7 +275,7 @@ export default function ProductModal({ product, onClose }) {
 
                 {/* Counter */}
                 <div className="lightbox-counter">
-                  {activeImgIndex + 1} / {images.length}
+                  {activeImgIndex + 1} / {images.length} • {isLightboxZoomed ? 'Tap to fit' : 'Tap to zoom'}
                 </div>
               </>
             )}
