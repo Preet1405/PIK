@@ -1677,74 +1677,141 @@ main {
 /* Mobile Responsive Optimization for Full-Page Product View */
 @media (max-width: 992px) {
   .product-detail-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
-    margin-bottom: 2rem;
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+    margin-bottom: 2rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .product-detail-image-wrap {
-    border-right: none;
-    border-bottom: 1px solid var(--border-color);
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color) !important;
+  }
+
+  .product-detail-main-img-container {
+    height: 360px !important;
+    width: 100% !important;
+  }
+
+  .product-detail-main-img {
+    max-height: 340px !important;
+    width: 100% !important;
   }
 
   .product-detail-details {
-    padding: 2rem;
+    width: 100% !important;
+    padding: 1.75rem 1.25rem !important;
+    box-sizing: border-box !important;
+    flex: 1 1 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .product-detail-category {
+    font-size: 0.85rem !important;
+    margin-bottom: 0.5rem !important;
   }
 
   .product-detail-title {
-    font-size: 2rem;
-    margin-bottom: 1.25rem;
+    font-size: 2.1rem !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+    margin-bottom: 1.25rem !important;
+  }
+
+  .product-detail-price-wrap {
+    padding: 0.85rem 1.25rem !important;
+    margin-bottom: 1.5rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .product-detail-price {
+    font-size: 2.1rem !important;
+    font-weight: 700 !important;
+  }
+
+  .product-detail-desc {
+    font-size: 1.05rem !important;
+    line-height: 1.65 !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .product-detail-action-wrap {
+    width: 100% !important;
+    margin-top: 1.5rem !important;
+  }
+
+  .product-detail-action-wrap .btn-whatsapp {
+    width: 100% !important;
+    padding: 1rem 1.25rem !important;
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    border-radius: var(--radius-md) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.75rem !important;
+    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.35) !important;
   }
 }
 
 @media (max-width: 768px) {
   .product-detail-container {
-    padding: 0 1rem;
-    margin: 1rem auto;
+    padding: 0 0.75rem !important;
+    margin: 0.75rem auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .back-to-shop-btn {
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
+    margin-bottom: 0.75rem !important;
+    font-size: 0.9rem !important;
   }
 
   .product-detail-main-img-container {
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    height: 320px !important;
   }
 
-  /* aspect-ratio handles sizing; override forces reasonable max height on small screens */
   .product-detail-main-img {
-    max-height: none;
+    max-height: 300px !important;
   }
 
   .product-detail-thumbnails {
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 0.75rem !important;
+    gap: 0.5rem !important;
   }
 
   .product-detail-thumbnail-img {
-    width: 54px;
-    height: 54px;
+    width: 52px !important;
+    height: 52px !important;
   }
 
   /* Lightbox nav arrows stay inside the image on small screens */
-  .lightbox-prev { left: 8px; }
-  .lightbox-next { right: 8px; }
+  .lightbox-prev { left: 8px !important; }
+  .lightbox-next { right: 8px !important; }
 
   .product-detail-details {
-    padding: 1.5rem 1rem;
+    padding: 1.5rem 1rem !important;
   }
 
   .product-detail-title {
-    font-size: 1.6rem;
+    font-size: 1.95rem !important;
   }
 
   .product-detail-price {
-    font-size: 1.75rem;
+    font-size: 1.95rem !important;
   }
 
   .product-detail-desc {
-    font-size: 0.95rem;
-    margin-bottom: 2rem;
+    font-size: 1rem !important;
+    margin-bottom: 1.25rem !important;
   }
 }
 
