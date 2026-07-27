@@ -285,29 +285,14 @@ export const StoreProvider = ({ children }) => {
       }
 
       // 2. Fetch full products list in 1 single request
-      const cloudProds = await cloudGet('products_v3');
+      const cloudProds = await cloudGet('pik_live_products_v6');
       if (cloudProds !== null && Array.isArray(cloudProds)) {
-        setProducts(prevProducts => {
-          const merged = cloudProds.map(cp => {
-            const lp = prevProducts.find(p => p.id === cp.id);
-            const cpHasImg = Boolean(cp.imageUrl || (cp.imageUrls && cp.imageUrls.length > 0));
-            const lpHasImg = Boolean(lp && (lp.imageUrl || (lp.imageUrls && lp.imageUrls.length > 0)));
-            if (!cpHasImg && lpHasImg) {
-              return {
-                ...cp,
-                imageUrl: lp.imageUrl,
-                imageUrls: lp.imageUrls || (lp.imageUrl ? [lp.imageUrl] : [])
-              };
-            }
-            return cp;
-          });
-          localStorage.setItem('pik_products', JSON.stringify(merged));
-          return merged;
-        });
+        setProducts(cloudProds);
+        localStorage.setItem('pik_products', JSON.stringify(cloudProds));
       } else if (cloudProds === null && !silent) {
         // First initialization: seed cloud with current products
         const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null') || DEFAULT_PRODUCTS;
-        await cloudPut('products_v3', localProds);
+        await cloudPut('pik_live_products_v6', sanitizeForCloud(localProds));
       }
 
       // 3. Categories
@@ -342,32 +327,13 @@ export const StoreProvider = ({ children }) => {
     await cloudPut('sync_version', { v: newVer });
   };
 
-  // Load cloud data on mount and poll version every 2 seconds
+  // Load cloud data on mount and poll version every 2.5 seconds
   useEffect(() => {
     fetchCloudData();
     const intervalId = setInterval(() => {
       fetchCloudData(true);
-    }, 2000);
+    }, 2500);
     return () => clearInterval(intervalId);
-  }, []);
-
-  // Auto-repair: on first load push a clean (sanitized) products payload to cloud.
-  // This fixes any corrupted products_v3 key caused by previous oversized base64 uploads.
-  useEffect(() => {
-    const repairCloudSync = async () => {
-      const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null');
-      if (!localProds || localProds.length === 0) return;
-      // Only repair once per session to avoid unnecessary writes
-      if (sessionStorage.getItem('pik_sync_repaired')) return;
-      sessionStorage.setItem('pik_sync_repaired', 'true');
-      const cleaned = sanitizeForCloud(localProds);
-      await cloudPut('products_v3', cleaned);
-      await cloudPut('sync_version', { v: Date.now() });
-      console.log('[PIK] Cloud sync repaired with sanitized product data.');
-    };
-    // Slight delay so initial fetchCloudData completes first
-    const t = setTimeout(repairCloudSync, 3000);
-    return () => clearTimeout(t);
   }, []);
 
 
@@ -409,7 +375,7 @@ export const StoreProvider = ({ children }) => {
 
     // Non-blocking background cloud update
     const sanitized = sanitizeForCloud(updatedList);
-    cloudPut('products_v3', sanitized).then(() => {
+    cloudPut('pik_live_products_v6', sanitized).then(() => {
       bumpSyncVersion();
     });
 
@@ -428,7 +394,7 @@ export const StoreProvider = ({ children }) => {
 
     // Non-blocking background cloud update
     const sanitized = sanitizeForCloud(updatedList);
-    cloudPut('products_v3', sanitized).then(() => {
+    cloudPut('pik_live_products_v6', sanitized).then(() => {
       bumpSyncVersion();
     });
 
@@ -447,7 +413,7 @@ export const StoreProvider = ({ children }) => {
 
     // Non-blocking background cloud update — instant 0ms deletion
     const sanitized = sanitizeForCloud(updatedList);
-    cloudPut('products_v3', sanitized).then(() => {
+    cloudPut('pik_live_products_v6', sanitized).then(() => {
       bumpSyncVersion();
     });
 
