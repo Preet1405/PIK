@@ -100,13 +100,13 @@ export default function AdminDashboard() {
     });
   };
 
-  // ── Fallback local image processing — high resolution photo scaling ──
+  // ── Fallback local image processing — optimized 650px scaling (~25KB base64) ──
   const processFileLocally = (file) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        const MAX_DIM = 1200;
+        const MAX_DIM = 650;
         let w = img.width, h = img.height;
         if (w > MAX_DIM || h > MAX_DIM) {
           if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
@@ -118,7 +118,7 @@ export default function AdminDashboard() {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.70);
         setProductForm(prev => {
           const updatedUrls = [...prev.imageUrls, dataUrl];
           return {
@@ -254,18 +254,13 @@ export default function AdminDashboard() {
     const parsedPrice = parseFloat(productForm.price) || 0;
     
     const validImageUrls = (productForm.imageUrls || []).filter(Boolean);
-    let primaryImageUrl = validImageUrls[0] || productForm.imageUrl || '';
-
-    // If no image provided, assign default fallback image so product never shows empty beige box
-    if (!primaryImageUrl) {
-      primaryImageUrl = 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600';
-    }
+    const primaryImageUrl = validImageUrls[0] || productForm.imageUrl || '';
 
     const finalForm = {
       ...productForm,
       price: parsedPrice,
       imageUrl: primaryImageUrl,
-      imageUrls: validImageUrls.length > 0 ? validImageUrls : [primaryImageUrl]
+      imageUrls: validImageUrls.length > 0 ? validImageUrls : (primaryImageUrl ? [primaryImageUrl] : [])
     };
 
     setIsSaving(true);

@@ -10,21 +10,23 @@ export default function ProductCard({ product, onViewDetails }) {
     orderProductViaWhatsapp(product);
   };
 
-  const displayImage = product.imageUrl || (product.imageUrls && product.imageUrls[0]) || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600';
+  const displayImage = product.imageUrl || (product.imageUrls && product.imageUrls[0]) || '';
 
   return (
     <div className="product-card animate-fade" onClick={() => onViewDetails(product)}>
       <div className="product-card-image-wrap">
-        <img
-          src={displayImage}
-          alt={product.name}
-          className="product-card-img"
-          loading="lazy"
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600';
-          }}
-        />
+        {displayImage ? (
+          <img
+            src={displayImage}
+            alt={product.name}
+            className="product-card-img"
+            loading="lazy"
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
+            No image attached
+          </div>
+        )}
         <span className={`product-card-badge ${!product.inStock ? 'out-of-stock' : ''}`}>
           {product.inStock ? product.category : 'Out of Stock'}
         </span>

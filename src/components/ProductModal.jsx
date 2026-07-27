@@ -19,7 +19,7 @@ export default function ProductModal({ product, onClose }) {
   // Resolve multiple images with backward compatibility
   const images = product.imageUrls && product.imageUrls.length > 0
     ? product.imageUrls
-    : [product.imageUrl || 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&q=80&w=800'];
+    : (product.imageUrl ? [product.imageUrl] : []);
 
   const activeImage = images[activeImgIndex] || images[0] || '';
 
@@ -108,13 +108,9 @@ export default function ProductModal({ product, onClose }) {
               } : {}}
             >
               <img
-                src={activeImage || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=800'}
+                src={activeImage}
                 alt={product.name}
                 className={`product-detail-main-img ${isZoomed ? 'zoom-hidden' : ''}`}
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=800';
-                }}
               />
 
               {/* Prev/Next arrows (shown when multiple images) */}
