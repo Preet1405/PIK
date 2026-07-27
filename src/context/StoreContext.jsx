@@ -2,8 +2,8 @@ import React, { createContext, useState, useEffect, useRef } from 'react';
 
 export const StoreContext = createContext();
 
-const DB_BASE_URL = 'https://kvdb.io/3h6MXWHLN9eTgfQ2je81HH';
-const CLOUD_STATE_KEY = 'pik_store_state_v9';
+const RESTFUL_API_URL = 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fa4436f07349e';
+const KVDB_FALLBACK_URL = 'https://kvdb.io/3h6MXWHLN9eTgfQ2je81HH/pik_store_state_v9';
 
 // BroadcastChannel for instant 0ms tab-to-tab sync without network calls
 const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
@@ -110,34 +110,72 @@ const showToast = (message) => {
   }, 4500);
 };
 
-// Cloud helper — PUT a single key (with quick retry)
+// Dual-backend cloud helper — PUT with zero rate limits & failover
 const cloudPut = async (key, data, retries = 1) => {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(`${DB_BASE_URL}/${key}`, {
+  const payload = {
+    name: 'pik_bags_covers_live_store_v10',
+    data: data
+  };
+
+  // Primary Endpoint (restful-api.dev) — ZERO rate limits!
+  try {
+    const res = await fetch(RESTFUL_API_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      // Silently sync fallback KV in background
+      fetch(KVDB_FALLBACK_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
-      });
-      if (res.ok) return true;
-      if (attempt < retries) await new Promise(r => setTimeout(r, 200));
-    } catch (err) {
-      if (attempt < retries) await new Promise(r => setTimeout(r, 200));
+      }).catch(() => {});
+      return true;
     }
+  } catch (err) {
+    console.warn('[PIK Sync] Primary cloud PUT failed, using fallback:', err);
   }
+
+  // Fallback Endpoint (kvdb)
+  try {
+    const res = await fetch(KVDB_FALLBACK_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('[PIK Sync] Fallback cloud PUT failed:', err);
+  }
+
   return false;
 };
 
-// Cloud helper — GET a single key
-const cloudGet = async (key) => {
+// Dual-backend cloud helper — GET with automatic failover
+const cloudGet = async () => {
+  // Primary Endpoint (restful-api.dev)
   try {
-    const res = await fetch(`${DB_BASE_URL}/${key}?t=${Date.now()}`);
-    if (res.ok) return await res.json();
-    if (res.status === 404) return null;
+    const res = await fetch(`${RESTFUL_API_URL}?t=${Date.now()}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.data && typeof json.data === 'object' && json.data.v) {
+        return json.data;
+      }
+    }
   } catch (err) {
-    console.warn(`Cloud GET /${key} failed:`, err);
+    console.warn('[PIK Sync] Primary cloud GET failed, using fallback:', err);
   }
-  return undefined;
+
+  // Fallback Endpoint (kvdb)
+  try {
+    const res = await fetch(`${KVDB_FALLBACK_URL}?t=${Date.now()}`);
+    if (res.ok) return await res.json();
+  } catch (err) {
+    console.warn('[PIK Sync] Secondary cloud GET failed:', err);
+  }
+
+  return null;
 };
 
 // Base64 Cloud Sanitizer (~40KB budget per base64 image)
@@ -218,7 +256,7 @@ export const StoreProvider = ({ children }) => {
     }
 
     // Single HTTP PUT request to cloud
-    await cloudPut(CLOUD_STATE_KEY, payload);
+    await cloudPut(null, payload);
   };
 
   // Fetch unified store state from cloud (1 single GET request per poll)
@@ -228,7 +266,7 @@ export const StoreProvider = ({ children }) => {
 
     if (!silent) setIsSyncing(true);
     try {
-      const cloudData = await cloudGet(CLOUD_STATE_KEY);
+      const cloudData = await cloudGet();
       if (cloudData && typeof cloudData === 'object' && cloudData.v) {
         if (cloudData.v > lastSyncVersionRef.current) {
           lastSyncVersionRef.current = cloudData.v;
