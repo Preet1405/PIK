@@ -334,18 +334,11 @@ export const StoreProvider = ({ children }) => {
     let updatedList = [];
     setProducts(prevProducts => {
       updatedList = prevProducts.filter(p => p.id !== id);
-      localStorage.setItem('pik_products', JSON.stringify(updatedList));
       return updatedList;
     });
 
     showToast('✓ Product deleted.');
-
-    // Non-blocking background cloud update — instant 0ms deletion
-    const sanitized = sanitizeForCloud(updatedList);
-    cloudPut('pik_live_products_v6', sanitized).then(() => {
-      bumpSyncVersion();
-    });
-
+    await pushStateToCloud(updatedList, categories, settings);
     return true;
   };
 
