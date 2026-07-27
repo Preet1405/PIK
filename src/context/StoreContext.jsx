@@ -178,8 +178,8 @@ const cloudGet = async () => {
   return null;
 };
 
-// Base64 Cloud Sanitizer (~40KB budget per base64 image)
-const MAX_B64_CHARS = 40000;
+// Base64 Cloud Sanitizer (~370KB budget per base64 image)
+const MAX_B64_CHARS = 500000;
 const sanitizeForCloud = (productList) => {
   return productList.map(product => {
     const rawUrls = product.imageUrls && product.imageUrls.length > 0
@@ -191,11 +191,12 @@ const sanitizeForCloud = (productList) => {
         if (!url) return null;
         if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
         if (url.startsWith('data:image/') && url.length <= MAX_B64_CHARS) return url;
+        if (url.length <= 600000) return url;
         return null;
       })
       .filter(Boolean);
 
-    const safeImageUrl = cleanUrls[0] || (product.imageUrl && !product.imageUrl.startsWith('data:image/') ? product.imageUrl : '');
+    const safeImageUrl = cleanUrls[0] || product.imageUrl || '';
 
     return {
       ...product,
