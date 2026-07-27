@@ -17,71 +17,7 @@ const DEFAULT_CATEGORIES = [
   'Custom Covers'
 ];
 
-const DEFAULT_PRODUCTS = [
-  {
-    id: 'prod-1',
-    name: 'Classic Canvas Tote Bag',
-    description: 'Durable, eco-friendly canvas tote bag with reinforced handles and a spacious interior. Perfect for daily shopping, work, or casual outings.',
-    price: 499,
-    category: 'Tote Bags',
-    imageUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600',
-    inStock: true
-  },
-  {
-    id: 'prod-2',
-    name: 'Quilted Shockproof Laptop Sleeve',
-    description: 'Elegant water-resistant cover padded with multi-layer dense foam for ultimate protection. Soft inner lining prevents scratches. Fits 13 to 16 inch laptops.',
-    price: 799,
-    category: 'Laptop Sleeves',
-    imageUrl: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=600',
-    inStock: true
-  },
-  {
-    id: 'prod-3',
-    name: 'Premium Canvas Duffel Bag',
-    description: 'Heavy-duty canvas duffel bag featuring leather trim, spacious compartments, adjustable shoulder straps, and a separate shoe divider.',
-    price: 1899,
-    category: 'Travel Bags',
-    imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&q=80&w=600',
-    inStock: true
-  },
-  {
-    id: 'prod-4',
-    name: 'Heavy-Duty Waterproof Grill Cover',
-    description: 'Tailored outdoor cover made of 600D marine-grade polyester. Resists rain, wind, UV rays, and tearing. Equipped with adjustable straps for high-wind stability.',
-    price: 1299,
-    category: 'Custom Covers',
-    imageUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=600',
-    inStock: true
-  },
-  {
-    id: 'prod-5',
-    name: 'Cotton Drawstring Dust Bags (Set of 3)',
-    description: 'Pack of three breathable organic cotton dust covers. Perfect for protecting luxury handbags, shoes, and leather accessories from dust and sunlight.',
-    price: 349,
-    category: 'Tote Bags',
-    imageUrl: 'https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&q=80&w=600',
-    inStock: true
-  },
-  {
-    id: 'prod-6',
-    name: 'Bespoke Industrial Equipment Cover',
-    description: 'Custom-tailored, dustproof, and chemical-resistant cover for machinery or appliances. Designed to your exact dimensional blueprints.',
-    price: 1599,
-    category: 'Custom Covers',
-    imageUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=600',
-    inStock: true
-  },
-  {
-    id: 'prod-7',
-    name: 'Minimalist Neoprene Tablet Cover',
-    description: 'Ultra-slim, form-fitting sleeve with a secure zippered top. Easy to slide inside backpacks or carry under your arm.',
-    price: 399,
-    category: 'Laptop Sleeves',
-    imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&q=80&w=600',
-    inStock: true
-  }
-];
+const DEFAULT_PRODUCTS = [];
 
 const DEFAULT_SETTINGS = {
   storeName: 'PIK Bags & Covers',
