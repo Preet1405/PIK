@@ -3,6 +3,12 @@ import React, { createContext, useState, useEffect, useRef } from 'react';
 export const StoreContext = createContext();
 
 const DB_BASE_URL = 'https://kvdb.io/3h6MXWHLN9eTgfQ2je81HH';
+const CLOUD_STATE_KEY = 'pik_store_state_v9';
+
+// BroadcastChannel for instant 0ms tab-to-tab sync without network calls
+const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('pik_store_channel')
+  : null;
 
 const DEFAULT_CATEGORIES = [
   'Tote Bags',
@@ -104,8 +110,8 @@ const showToast = (message) => {
   }, 4500);
 };
 
-// Cloud helper — PUT a single key (with retry, longer backoff)
-const cloudPut = async (key, data, retries = 3) => {
+// Cloud helper — PUT a single key (with quick retry)
+const cloudPut = async (key, data, retries = 1) => {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(`${DB_BASE_URL}/${key}`, {
@@ -114,13 +120,9 @@ const cloudPut = async (key, data, retries = 3) => {
         body: JSON.stringify(data)
       });
       if (res.ok) return true;
-      if (attempt < retries) await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+      if (attempt < retries) await new Promise(r => setTimeout(r, 200));
     } catch (err) {
-      if (attempt < retries) {
-        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
-      } else {
-        console.error(`Cloud PUT /${key} failed:`, err);
-      }
+      if (attempt < retries) await new Promise(r => setTimeout(r, 200));
     }
   }
   return false;
@@ -135,27 +137,11 @@ const cloudGet = async (key) => {
   } catch (err) {
     console.warn(`Cloud GET /${key} failed:`, err);
   }
-  return undefined; // undefined = error, null = not found
+  return undefined;
 };
 
-// Cloud helper — DELETE a single key
-const cloudDelete = async (key) => {
-  try {
-    await fetch(`${DB_BASE_URL}/${key}`, { method: 'DELETE' });
-  } catch (err) {
-    console.warn(`Cloud DELETE /${key} failed:`, err);
-  }
-};
-
-// ───────────────────────────────────────────────────────────────
-// CLOUD SANITIZER
-// kvdb.io has a 100 KB per-key limit. Oversized base64 images cause
-// PUT requests to fail silently, breaking sync for everyone.
-// This strips any base64 that is too large before saving to the cloud.
-// HTTP/GitHub URLs are always kept as-is (they are just tiny strings).
-// ───────────────────────────────────────────────────────────────
-const MAX_B64_CHARS = 150000; // ~110 KB budget per base64 image in cloud
-
+// Base64 Cloud Sanitizer (~40KB budget per base64 image)
+const MAX_B64_CHARS = 40000;
 const sanitizeForCloud = (productList) => {
   return productList.map(product => {
     const rawUrls = product.imageUrls && product.imageUrls.length > 0
@@ -165,13 +151,8 @@ const sanitizeForCloud = (productList) => {
     const cleanUrls = rawUrls
       .map(url => {
         if (!url) return null;
-        // Always keep external URLs (GitHub CDN, Unsplash, http, etc.) — zero size impact
         if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
-        // For base64: keep if within budget (<= 150,000 chars)
-        if (url.startsWith('data:image/') && url.length <= MAX_B64_CHARS) {
-          return url;
-        }
-        console.warn(`[PIK] Base64 image (${Math.round(url.length / 1024)}KB) exceeds cloud budget for "${product.name}".`);
+        if (url.startsWith('data:image/') && url.length <= MAX_B64_CHARS) return url;
         return null;
       })
       .filter(Boolean);
@@ -207,109 +188,63 @@ export const StoreProvider = ({ children }) => {
   });
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const lastSyncVersionRef = useRef(0);
 
   // Persist to localStorage on every state change
   useEffect(() => { localStorage.setItem('pik_categories', JSON.stringify(categories)); }, [categories]);
   useEffect(() => { localStorage.setItem('pik_products', JSON.stringify(products)); }, [products]);
   useEffect(() => { localStorage.setItem('pik_settings', JSON.stringify(settings)); }, [settings]);
 
-  // ──────────────────────────────────────────────────────────────
-  // CLOUD SYNC: Each product is stored as its own key (p_{id})
-  // to avoid exceeding kvdb.io's 100KB per-key limit.
-  // A product_index key holds the array of product IDs.
-  // ──────────────────────────────────────────────────────────────
+  // Push unified store state to cloud & broadcast to open tabs
+  const pushStateToCloud = async (newProducts, newCategories, newSettings) => {
+    const prods = newProducts !== undefined ? newProducts : products;
+    const cats = newCategories !== undefined ? newCategories : categories;
+    const sets = newSettings !== undefined ? newSettings : settings;
+    const version = Date.now();
+    lastSyncVersionRef.current = version;
 
-  // Save a single product to cloud
-  const saveProductToCloud = async (product) => {
-    return await cloudPut(`p_${product.id}`, product);
-  };
+    const payload = {
+      v: version,
+      products: sanitizeForCloud(prods),
+      categories: cats,
+      settings: sets
+    };
 
-  // Delete a single product from cloud
-  const removeProductFromCloud = async (id) => {
-    await cloudDelete(`p_${id}`);
-  };
-
-  // Save the product index (list of IDs) to cloud
-  const saveProductIndex = async (productList) => {
-    const ids = productList.map(p => p.id);
-    return await cloudPut('product_index', ids);
-  };
-
-  // Load all products from cloud using the index
-  const loadProductsFromCloud = async () => {
-    const ids = await cloudGet('product_index');
-
-    if (ids === null) {
-      // No index exists yet — this is the first time. Migrate existing data.
-      // Check if old-style "products" key exists
-      const oldProducts = await cloudGet('products');
-      if (oldProducts && !oldProducts.error) {
-        const prods = Array.isArray(oldProducts) ? oldProducts.filter(Boolean) : Object.values(oldProducts);
-        if (prods.length > 0) {
-          // Migrate each product to individual keys
-          await Promise.all(prods.map(p => saveProductToCloud(p)));
-          await saveProductIndex(prods);
-          // Clean up old key
-          await cloudDelete('products');
-          return prods;
-        }
-      }
-      // Nothing in cloud — push local data
-      return null;
+    // Instant 0ms broadcast to all other open tabs on this device
+    if (syncChannel) {
+      try {
+        syncChannel.postMessage({ type: 'PIK_STORE_UPDATE', payload });
+      } catch (e) {}
     }
 
-    if (ids === undefined) return undefined; // fetch error
-
-    if (!Array.isArray(ids) || ids.length === 0) return [];
-
-    // Fetch each product by its key
-    const results = await Promise.all(
-      ids.map(id => cloudGet(`p_${id}`))
-    );
-    return results.filter(p => p && typeof p === 'object' && p.id);
+    // Single HTTP PUT request to cloud
+    await cloudPut(CLOUD_STATE_KEY, payload);
   };
 
-  const lastSyncVersionRef = useRef(0);
-
-  // Standalone fetch function with version-based conditional polling
+  // Fetch unified store state from cloud (1 single GET request per poll)
   const fetchCloudData = async (silent = false) => {
+    // Visibility guard: DO NOT poll if page is hidden / in background
+    if (silent && document.hidden) return true;
+
     if (!silent) setIsSyncing(true);
     try {
-      // 1. Check version first to prevent unnecessary GET requests & rate limiting
-      const cloudVerObj = await cloudGet('sync_version');
-      const cloudVer = cloudVerObj?.v || 0;
-
-      if (silent && cloudVer > 0 && cloudVer === lastSyncVersionRef.current) {
-        // No changes on cloud — skip to save bandwidth & prevent lag
-        return true;
-      }
-
-      // 2. Fetch full products list in 1 single request
-      const cloudProds = await cloudGet('pik_live_products_v6');
-      if (cloudProds !== null && Array.isArray(cloudProds)) {
-        setProducts(cloudProds);
-        localStorage.setItem('pik_products', JSON.stringify(cloudProds));
-      } else if (cloudProds === null && !silent) {
-        // First initialization: seed cloud with current products
-        const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null') || DEFAULT_PRODUCTS;
-        await cloudPut('pik_live_products_v6', sanitizeForCloud(localProds));
-      }
-
-      // 3. Categories
-      const cloudCats = await cloudGet('categories');
-      if (Array.isArray(cloudCats)) {
-        setCategories(cloudCats);
-      }
-
-      // 4. Settings
-      const cloudSettings = await cloudGet('settings');
-      if (cloudSettings && typeof cloudSettings === 'object' && !cloudSettings.error) {
-        const updatedCloudSettings = { ...cloudSettings, adminPasscode: 'Preet1405' };
-        setSettings(updatedCloudSettings);
-      }
-
-      if (cloudVer > 0) {
-        lastSyncVersionRef.current = cloudVer;
+      const cloudData = await cloudGet(CLOUD_STATE_KEY);
+      if (cloudData && typeof cloudData === 'object' && cloudData.v) {
+        if (cloudData.v > lastSyncVersionRef.current) {
+          lastSyncVersionRef.current = cloudData.v;
+          if (Array.isArray(cloudData.products)) {
+            setProducts(cloudData.products);
+          }
+          if (Array.isArray(cloudData.categories)) {
+            setCategories(cloudData.categories);
+          }
+          if (cloudData.settings) {
+            setSettings({ ...cloudData.settings, adminPasscode: 'Preet1405' });
+          }
+        }
+      } else if (cloudData === null && !silent) {
+        // Initial seed to cloud
+        await pushStateToCloud(products, categories, settings);
       }
       return true;
     } catch (err) {
@@ -320,24 +255,44 @@ export const StoreProvider = ({ children }) => {
     }
   };
 
-  // Helper to publish new version to cloud
-  const bumpSyncVersion = async () => {
-    const newVer = Date.now();
-    lastSyncVersionRef.current = newVer;
-    await cloudPut('sync_version', { v: newVer });
-  };
-
-  // Load cloud data on mount and poll version every 2.5 seconds
+  // Poll cloud every 6 seconds when active + on tab focus
   useEffect(() => {
     fetchCloudData();
+
     const intervalId = setInterval(() => {
       fetchCloudData(true);
-    }, 2500);
-    return () => clearInterval(intervalId);
+    }, 6000);
+
+    const handleFocus = () => fetchCloudData(true);
+    window.addEventListener('focus', handleFocus);
+
+    // Listen to BroadcastChannel for instant multi-tab sync on same device
+    let channelListener = null;
+    if (syncChannel) {
+      channelListener = (e) => {
+        if (e.data && e.data.type === 'PIK_STORE_UPDATE' && e.data.payload) {
+          const payload = e.data.payload;
+          if (payload.v > lastSyncVersionRef.current) {
+            lastSyncVersionRef.current = payload.v;
+            if (Array.isArray(payload.products)) setProducts(payload.products);
+            if (Array.isArray(payload.categories)) setCategories(payload.categories);
+            if (payload.settings) setSettings({ ...payload.settings, adminPasscode: 'Preet1405' });
+          }
+        }
+      };
+      syncChannel.addEventListener('message', channelListener);
+    }
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      if (syncChannel && channelListener) {
+        syncChannel.removeEventListener('message', channelListener);
+      }
+    };
   }, []);
 
-
-  // Cross-tab synchronization listener
+  // Cross-tab fallback listener
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'pik_products' && e.newValue) {
@@ -355,7 +310,7 @@ export const StoreProvider = ({ children }) => {
   }, []);
 
   // ──────────────────────────────────────────────
-  // Product CRUD — Instant Local + Single Payload Cloud Sync
+  // Product CRUD
   // ──────────────────────────────────────────────
 
   const addProduct = async (product) => {
@@ -367,18 +322,11 @@ export const StoreProvider = ({ children }) => {
     let updatedList = [];
     setProducts(prevProducts => {
       updatedList = [newProduct, ...prevProducts];
-      localStorage.setItem('pik_products', JSON.stringify(updatedList));
       return updatedList;
     });
 
     showToast('✓ Product saved!');
-
-    // Non-blocking background cloud update
-    const sanitized = sanitizeForCloud(updatedList);
-    cloudPut('pik_live_products_v6', sanitized).then(() => {
-      bumpSyncVersion();
-    });
-
+    pushStateToCloud(updatedList, categories, settings);
     return true;
   };
 
@@ -386,18 +334,11 @@ export const StoreProvider = ({ children }) => {
     let updatedList = [];
     setProducts(prevProducts => {
       updatedList = prevProducts.map(p => p.id === updatedProduct.id ? updatedProduct : p);
-      localStorage.setItem('pik_products', JSON.stringify(updatedList));
       return updatedList;
     });
 
     showToast('✓ Product updated!');
-
-    // Non-blocking background cloud update
-    const sanitized = sanitizeForCloud(updatedList);
-    cloudPut('pik_live_products_v6', sanitized).then(() => {
-      bumpSyncVersion();
-    });
-
+    pushStateToCloud(updatedList, categories, settings);
     return true;
   };
 
@@ -427,13 +368,13 @@ export const StoreProvider = ({ children }) => {
   const addCategory = async (categoryName) => {
     const cleanedName = categoryName.trim();
     if (!cleanedName) return false;
-
     if (categories.includes(cleanedName)) return false;
 
     const updatedList = [...categories, cleanedName];
     setCategories(updatedList);
 
-    return await cloudPut('categories', updatedList);
+    pushStateToCloud(products, updatedList, settings);
+    return true;
   };
 
   const renameCategory = async (oldName, newName) => {
@@ -448,13 +389,8 @@ export const StoreProvider = ({ children }) => {
     );
     setProducts(updatedProds);
 
-    const catSync = await cloudPut('categories', updatedCats);
-
-    // Update each renamed product in cloud
-    const renamedProds = updatedProds.filter(p => p.category === cleanedNewName);
-    await Promise.all(renamedProds.map(p => saveProductToCloud(p)));
-
-    return catSync;
+    pushStateToCloud(updatedProds, updatedCats, settings);
+    return true;
   };
 
   const deleteCategory = async (categoryName) => {
@@ -469,12 +405,8 @@ export const StoreProvider = ({ children }) => {
     );
     setProducts(updatedProds);
 
-    const catSync = await cloudPut('categories', updatedCats);
-
-    const reassigned = updatedProds.filter(p => p.category === defaultCat);
-    await Promise.all(reassigned.map(p => saveProductToCloud(p)));
-
-    return catSync;
+    pushStateToCloud(updatedProds, updatedCats, settings);
+    return true;
   };
 
   // ──────────────────────────────────────────────
@@ -485,9 +417,9 @@ export const StoreProvider = ({ children }) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
 
-    const synced = await cloudPut('settings', updated);
-    if (synced) showToast('✓ Settings saved!');
-    return synced;
+    pushStateToCloud(products, categories, updated);
+    showToast('✓ Settings saved!');
+    return true;
   };
 
   // Admin Login/Logout
