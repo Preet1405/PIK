@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PIK BAGS AND COVERS</string>
+    <string name="title_activity_main">PIK BAGS AND COVERS</string>
+    <string name="package_name">com.sachinnov.pikbags</string>
+    <string name="custom_url_scheme">com.sachinnov.pikbags</string>
+</resources>

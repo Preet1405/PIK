@@ -1,0 +1,17 @@
+{
+  "short_name": "PIK BAGS",
+  "name": "PIK BAGS AND COVERS",
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "type": "image/jpeg",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0a0a0c",
+  "theme_color": "#0a0a0c",
+  "display": "standalone",
+  "orientation": "portrait"
+}
