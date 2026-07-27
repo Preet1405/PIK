@@ -38,6 +38,18 @@ export default function ProductModal({ product, onClose }) {
     setActiveImgIndex(prev => (prev - 1 + images.length) % images.length);
   }, [images.length]);
 
+  // Prevent background scrolling when Lightbox is open
+  useEffect(() => {
+    if (isLightboxOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isLightboxOpen]);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKey = (e) => {
