@@ -154,7 +154,7 @@ const cloudDelete = async (key) => {
 // This strips any base64 that is too large before saving to the cloud.
 // HTTP/GitHub URLs are always kept as-is (they are just tiny strings).
 // ───────────────────────────────────────────────────────────────
-const MAX_B64_CHARS = 45000; // ~33 KB raw — safe budget per image in cloud
+const MAX_B64_CHARS = 150000; // ~110 KB budget per base64 image in cloud
 
 const sanitizeForCloud = (productList) => {
   return productList.map(product => {
@@ -165,13 +165,13 @@ const sanitizeForCloud = (productList) => {
     const cleanUrls = rawUrls
       .map(url => {
         if (!url) return null;
-        // Always keep external URLs (GitHub CDN, Unsplash, http, etc.) — they are tiny
+        // Always keep external URLs (GitHub CDN, Unsplash, http, etc.) — zero size impact
         if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
-        // For base64: only keep if within budget (<= 45,000 chars)
+        // For base64: keep if within budget (<= 150,000 chars)
         if (url.startsWith('data:image/') && url.length <= MAX_B64_CHARS) {
           return url;
         }
-        console.warn(`[PIK] Stripped oversized base64 image (${Math.round(url.length/1024)}KB) from cloud payload for product "${product.name}".`);
+        console.warn(`[PIK] Base64 image (${Math.round(url.length/1024)}KB) exceeds cloud budget for "${product.name}".`);
         return null;
       })
       .filter(Boolean);
@@ -181,7 +181,7 @@ const sanitizeForCloud = (productList) => {
     return {
       ...product,
       imageUrl: safeImageUrl,
-      imageUrls: cleanUrls
+      imageUrls: cleanUrls.length > 0 ? cleanUrls : (safeImageUrl ? [safeImageUrl] : [])
     };
   });
 };

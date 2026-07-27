@@ -100,13 +100,13 @@ export default function AdminDashboard() {
     });
   };
 
-  // ── Fallback local compression — used when no GitHub token is set ──
+  // ── Fallback local image processing — high resolution photo scaling ──
   const processFileLocally = (file) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        const MAX_DIM = 800;
+        const MAX_DIM = 1200;
         let w = img.width, h = img.height;
         if (w > MAX_DIM || h > MAX_DIM) {
           if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
@@ -118,7 +118,7 @@ export default function AdminDashboard() {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
         setProductForm(prev => {
           const updatedUrls = [...prev.imageUrls, dataUrl];
           return {
