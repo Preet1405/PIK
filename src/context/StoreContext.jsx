@@ -154,7 +154,7 @@ const cloudDelete = async (key) => {
 // This strips any base64 that is too large before saving to the cloud.
 // HTTP/GitHub URLs are always kept as-is (they are just tiny strings).
 // ───────────────────────────────────────────────────────────────
-const MAX_B64_CHARS = 300000; // ~220 KB budget per image in cloud
+const MAX_B64_CHARS = 45000; // ~33 KB raw — safe budget per image in cloud
 
 const sanitizeForCloud = (productList) => {
   return productList.map(product => {
@@ -166,22 +166,22 @@ const sanitizeForCloud = (productList) => {
       .map(url => {
         if (!url) return null;
         // Always keep external URLs (GitHub CDN, Unsplash, http, etc.) — they are tiny
-        if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:image/') === false) return url;
-        // For base64: keep if within budget
-        if (url.startsWith('data:image/') && url.length > MAX_B64_CHARS) {
-          console.warn(`[PIK] Stripped oversized base64 image (${Math.round(url.length/1024)}KB) from cloud payload for product "${product.name}". Local state keeps full version.`);
-          return null;
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+        // For base64: only keep if within budget (<= 45,000 chars)
+        if (url.startsWith('data:image/') && url.length <= MAX_B64_CHARS) {
+          return url;
         }
-        return url;
+        console.warn(`[PIK] Stripped oversized base64 image (${Math.round(url.length/1024)}KB) from cloud payload for product "${product.name}".`);
+        return null;
       })
       .filter(Boolean);
 
-    const fallbackImg = cleanUrls[0] || product.imageUrl || '';
+    const safeImageUrl = cleanUrls[0] || (product.imageUrl && !product.imageUrl.startsWith('data:image/') ? product.imageUrl : '');
 
     return {
       ...product,
-      imageUrl: fallbackImg,
-      imageUrls: cleanUrls.length > 0 ? cleanUrls : (fallbackImg ? [fallbackImg] : [])
+      imageUrl: safeImageUrl,
+      imageUrls: cleanUrls
     };
   });
 };
@@ -398,14 +398,16 @@ export const StoreProvider = ({ children }) => {
       id: `prod-${Date.now()}`
     };
 
-    const updatedList = [newProduct, ...products];
+    let updatedList = [];
+    setProducts(prevProducts => {
+      updatedList = [newProduct, ...prevProducts];
+      localStorage.setItem('pik_products', JSON.stringify(updatedList));
+      return updatedList;
+    });
 
-    // 1. Instant local update (keeps full image data locally)
-    setProducts(updatedList);
-    localStorage.setItem('pik_products', JSON.stringify(updatedList));
     showToast('✓ Product saved!');
 
-    // 2. Cloud update — strip oversized base64 so kvdb.io 100KB limit is never exceeded
+    // 2. Cloud update — sanitized payload
     await cloudPut('products_v3', sanitizeForCloud(updatedList));
     await bumpSyncVersion();
 
@@ -413,11 +415,13 @@ export const StoreProvider = ({ children }) => {
   };
 
   const updateProduct = async (updatedProduct) => {
-    const updatedList = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+    let updatedList = [];
+    setProducts(prevProducts => {
+      updatedList = prevProducts.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+      localStorage.setItem('pik_products', JSON.stringify(updatedList));
+      return updatedList;
+    });
 
-    // 1. Instant local update (keeps full image data locally)
-    setProducts(updatedList);
-    localStorage.setItem('pik_products', JSON.stringify(updatedList));
     showToast('✓ Product updated!');
 
     // 2. Cloud update — sanitized payload
@@ -428,14 +432,16 @@ export const StoreProvider = ({ children }) => {
   };
 
   const deleteProduct = async (id) => {
-    const updatedList = products.filter(p => p.id !== id);
+    let updatedList = [];
+    setProducts(prevProducts => {
+      updatedList = prevProducts.filter(p => p.id !== id);
+      localStorage.setItem('pik_products', JSON.stringify(updatedList));
+      return updatedList;
+    });
 
-    // 1. Instant local update (keeps full image data locally)
-    setProducts(updatedList);
-    localStorage.setItem('pik_products', JSON.stringify(updatedList));
     showToast('✓ Product deleted.');
 
-    // 2. Cloud update — sanitized payload, fixes any previously corrupted key
+    // 2. Cloud update — sanitized payload
     await cloudPut('products_v3', sanitizeForCloud(updatedList));
     await bumpSyncVersion();
 
