@@ -1,19 +1,28 @@
 {
-  "v": 1785160000000,
-  "products": [],
+  "v": 1785175975849,
+  "products": [
+    {
+      "id": "prod-1785170619226",
+      "name": "Preet Shah",
+      "price": 37363,
+      "category": "COVER",
+      "inStock": true
+    },
+    {
+      "id": "prod-1785170560000",
+      "name": "Kurta",
+      "price": 250,
+      "category": "COVER",
+      "inStock": true
+    }
+  ],
   "categories": [
-    "Tote Bags",
-    "Laptop Sleeves",
-    "Travel Bags",
-    "Custom Covers"
+    "COVER",
+    "POUCH",
+    "JEWELERY POUCH"
   ],
   "settings": {
-    "storeName": "PIK Bags & Covers",
-    "whatsappNumber": "9869468143",
-    "currency": "₹",
-    "tagline": "Custom Protection & Tailored Packaging",
-    "description": "We design and manufacture premium, heavy-duty covers, travel bags, and protective sleeves. Tailored to your specifications using superior quality fabrics for ultimate durability.",
-    "heroImage": "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=1600",
+    "storeName": "SACHIN NOVELTY ",
     "adminPasscode": "Preet1405"
   }
 }

@@ -2,8 +2,8 @@ import React, { createContext, useState, useEffect, useRef } from 'react';
 
 export const StoreContext = createContext();
 
+const KVDB_PRIMARY_URL = 'https://kvdb.io/3h6MXWHLN9eTgfQ2je81HH/pik_store_state_v9';
 const RESTFUL_API_URL = 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fa4436f07349e';
-const KVDB_FALLBACK_URL = 'https://kvdb.io/3h6MXWHLN9eTgfQ2je81HH/pik_store_state_v9';
 
 // BroadcastChannel for instant 0ms tab-to-tab sync without network calls
 const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
@@ -11,22 +11,41 @@ const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in windo
   : null;
 
 const DEFAULT_CATEGORIES = [
-  'Tote Bags',
-  'Laptop Sleeves',
-  'Travel Bags',
-  'Custom Covers'
+  'COVER',
+  'POUCH',
+  'JEWELERY POUCH'
 ];
 
-const DEFAULT_PRODUCTS = [];
+const DEFAULT_PRODUCTS = [
+  {
+    id: "prod-1785170619226",
+    name: "Preet Shah",
+    description: "Xhdhd",
+    price: 37363,
+    category: "COVER",
+    imageUrl: "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600",
+    inStock: true
+  },
+  {
+    id: "prod-1785170560000",
+    name: "Kurta",
+    description: "Tafata",
+    price: 250,
+    category: "COVER",
+    imageUrl: "https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=600",
+    inStock: true
+  }
+];
 
 const DEFAULT_SETTINGS = {
-  storeName: 'PIK Bags & Covers',
+  storeName: 'SACHIN NOVELTY ',
   whatsappNumber: '9869468143',
   currency: '₹',
-  tagline: 'Custom Protection & Tailored Packaging',
-  description: 'We design and manufacture premium, heavy-duty covers, travel bags, and protective sleeves. Tailored to your specifications using superior quality fabrics for ultimate durability.',
+  tagline: '🙏',
+  description: '🙏',
   heroImage: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=1600',
-  adminPasscode: 'Preet1405'
+  adminPasscode: 'Preet1405',
+  apkUrl: ''
 };
 
 // Toast Notification Helper
@@ -48,36 +67,32 @@ const showToast = (message) => {
 
 // Dual-backend cloud helper — PUT with zero rate limits & failover
 const cloudPut = async (key, data, retries = 1) => {
-  const payload = {
-    name: 'pik_bags_covers_live_store_v10',
-    data: data
-  };
-
-  // Primary Endpoint (restful-api.dev) — ZERO rate limits!
+  // Primary Endpoint (kvdb) — ZERO rate limits & supports large base64 payloads!
   try {
-    const res = await fetch(RESTFUL_API_URL, {
+    const res = await fetch(KVDB_PRIMARY_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(data)
     });
     if (res.ok) {
-      fetch(KVDB_FALLBACK_URL, {
+      // Best-effort secondary sync
+      fetch(RESTFUL_API_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify({ name: 'pik_bags_covers_live_store_v10', data })
       }).catch(() => {});
       return true;
     }
   } catch (err) {
-    console.warn('[PIK Sync] Primary cloud PUT failed:', err);
+    console.warn('[PIK Sync] Primary KVDB cloud PUT failed:', err);
   }
 
-  // Fallback Endpoint (kvdb)
+  // Fallback Endpoint (restful-api.dev)
   try {
-    const res = await fetch(KVDB_FALLBACK_URL, {
+    const res = await fetch(RESTFUL_API_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify({ name: 'pik_bags_covers_live_store_v10', data })
     });
     return res.ok;
   } catch (err) {
@@ -89,36 +104,38 @@ const cloudPut = async (key, data, retries = 1) => {
 
 // Dual-backend cloud helper — GET with automatic failover & static /data/store.json seed
 const cloudGet = async () => {
-  // Primary Endpoint (restful-api.dev)
+  // Primary Endpoint (KVDB)
+  try {
+    const res = await fetch(`${KVDB_PRIMARY_URL}?t=${Date.now()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object' && data.v && Array.isArray(data.products)) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('[PIK Sync] Primary KVDB cloud GET failed:', err);
+  }
+
+  // Secondary Endpoint (restful-api.dev)
   try {
     const res = await fetch(`${RESTFUL_API_URL}?t=${Date.now()}`);
     if (res.ok) {
       const json = await res.json();
-      if (json && json.data && typeof json.data === 'object' && json.data.v) {
+      if (json && json.data && typeof json.data === 'object' && json.data.v && Array.isArray(json.data.products)) {
         return json.data;
       }
-    }
-  } catch (err) {
-    console.warn('[PIK Sync] Primary cloud GET failed:', err);
-  }
-
-  // Fallback Endpoint (kvdb)
-  try {
-    const res = await fetch(`${KVDB_FALLBACK_URL}?t=${Date.now()}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data === 'object' && data.v) return data;
     }
   } catch (err) {
     console.warn('[PIK Sync] Secondary cloud GET failed:', err);
   }
 
-  // Final Unbreakable Seed: static /data/store.json from CDN/Host (Zero Rate Limits!)
+  // Final Unbreakable Seed: static /data/store.json from CDN/Host
   try {
     const res = await fetch(`/data/store.json?t=${Date.now()}`);
     if (res.ok) {
       const staticData = await res.json();
-      if (staticData && staticData.v) return staticData;
+      if (staticData && staticData.v && Array.isArray(staticData.products)) return staticData;
     }
   } catch (err) {
     console.warn('[PIK Sync] Static store.json GET failed:', err);
@@ -163,12 +180,18 @@ export const StoreProvider = ({ children }) => {
 
   const [products, setProducts] = useState(() => {
     const saved = localStorage.getItem('pik_products');
-    return saved ? JSON.parse(saved) : DEFAULT_PRODUCTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return DEFAULT_PRODUCTS;
   });
 
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('pik_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
   });
 
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
@@ -223,11 +246,11 @@ export const StoreProvider = ({ children }) => {
           if (Array.isArray(cloudData.products)) {
             setProducts(cloudData.products);
           }
-          if (Array.isArray(cloudData.categories)) {
+          if (Array.isArray(cloudData.categories) && cloudData.categories.length > 0) {
             setCategories(cloudData.categories);
           }
           if (cloudData.settings) {
-            setSettings({ ...cloudData.settings, adminPasscode: 'Preet1405' });
+            setSettings(prev => ({ ...prev, ...cloudData.settings, adminPasscode: 'Preet1405' }));
           }
         }
       } else if (cloudData === null && !silent) {
@@ -243,13 +266,13 @@ export const StoreProvider = ({ children }) => {
     }
   };
 
-  // Poll cloud every 6 seconds when active + on tab focus
+  // Poll cloud every 3 seconds when active + on tab focus
   useEffect(() => {
     fetchCloudData();
 
     const intervalId = setInterval(() => {
       fetchCloudData(true);
-    }, 6000);
+    }, 3000);
 
     const handleFocus = () => fetchCloudData(true);
     window.addEventListener('focus', handleFocus);
@@ -307,35 +330,26 @@ export const StoreProvider = ({ children }) => {
       id: `prod-${Date.now()}`
     };
 
-    let updatedList = [];
-    setProducts(prevProducts => {
-      updatedList = [newProduct, ...prevProducts];
-      return updatedList;
-    });
+    const updatedList = [newProduct, ...products];
+    setProducts(updatedList);
 
     showToast('✓ Product saved!');
-    pushStateToCloud(updatedList, categories, settings);
+    await pushStateToCloud(updatedList, categories, settings);
     return true;
   };
 
   const updateProduct = async (updatedProduct) => {
-    let updatedList = [];
-    setProducts(prevProducts => {
-      updatedList = prevProducts.map(p => p.id === updatedProduct.id ? updatedProduct : p);
-      return updatedList;
-    });
+    const updatedList = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+    setProducts(updatedList);
 
     showToast('✓ Product updated!');
-    pushStateToCloud(updatedList, categories, settings);
+    await pushStateToCloud(updatedList, categories, settings);
     return true;
   };
 
   const deleteProduct = async (id) => {
-    let updatedList = [];
-    setProducts(prevProducts => {
-      updatedList = prevProducts.filter(p => p.id !== id);
-      return updatedList;
-    });
+    const updatedList = products.filter(p => p.id !== id);
+    setProducts(updatedList);
 
     showToast('✓ Product deleted.');
     await pushStateToCloud(updatedList, categories, settings);
@@ -354,7 +368,7 @@ export const StoreProvider = ({ children }) => {
     const updatedList = [...categories, cleanedName];
     setCategories(updatedList);
 
-    pushStateToCloud(products, updatedList, settings);
+    await pushStateToCloud(products, updatedList, settings);
     return true;
   };
 
@@ -370,7 +384,7 @@ export const StoreProvider = ({ children }) => {
     );
     setProducts(updatedProds);
 
-    pushStateToCloud(updatedProds, updatedCats, settings);
+    await pushStateToCloud(updatedProds, updatedCats, settings);
     return true;
   };
 
@@ -386,7 +400,7 @@ export const StoreProvider = ({ children }) => {
     );
     setProducts(updatedProds);
 
-    pushStateToCloud(updatedProds, updatedCats, settings);
+    await pushStateToCloud(updatedProds, updatedCats, settings);
     return true;
   };
 
@@ -398,7 +412,7 @@ export const StoreProvider = ({ children }) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
 
-    pushStateToCloud(products, categories, updated);
+    await pushStateToCloud(products, categories, updated);
     showToast('✓ Settings saved!');
     return true;
   };

@@ -214,7 +214,8 @@ export default function AdminDashboard() {
     currency: settings.currency,
     tagline: settings.tagline,
     description: settings.description,
-    adminPasscode: settings.adminPasscode
+    adminPasscode: settings.adminPasscode,
+    apkUrl: settings.apkUrl || ''
   });
 
   const [settingsSuccess, setSettingsSuccess] = useState(false);
@@ -231,7 +232,8 @@ export default function AdminDashboard() {
         currency: settings.currency,
         tagline: settings.tagline,
         description: settings.description,
-        adminPasscode: settings.adminPasscode
+        adminPasscode: settings.adminPasscode,
+        apkUrl: settings.apkUrl || ''
       });
     } else {
       setLoginError('Invalid passcode. Please try again.');
@@ -968,6 +970,18 @@ export default function AdminDashboard() {
                     style={{ minHeight: '100px' }}
                     required
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ color: 'var(--accent-coral)' }}>Custom Hosted Android APK URL (Optional)</label>
+                  <input
+                    type="url"
+                    value={settingsForm.apkUrl}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, apkUrl: e.target.value })}
+                    placeholder="https://drive.google.com/uc?id=... or https://example.com/app.apk"
+                    className="form-control"
+                  />
+                  <p className="form-hint">Paste a link to your hosted .apk file (Google Drive, Dropbox, Cloud storage) if you wish to offer a direct APK download.</p>
                 </div>
 
                 <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', marginTop: '2rem', paddingTop: '1.5rem' }}>
