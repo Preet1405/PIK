@@ -154,7 +154,7 @@ const cloudDelete = async (key) => {
 // This strips any base64 that is too large before saving to the cloud.
 // HTTP/GitHub URLs are always kept as-is (they are just tiny strings).
 // ───────────────────────────────────────────────────────────────
-const MAX_B64_CHARS = 55000; // ~41 KB raw — safe budget per image in cloud
+const MAX_B64_CHARS = 300000; // ~220 KB budget per image in cloud
 
 const sanitizeForCloud = (productList) => {
   return productList.map(product => {
@@ -167,19 +167,21 @@ const sanitizeForCloud = (productList) => {
         if (!url) return null;
         // Always keep external URLs (GitHub CDN, Unsplash, http, etc.) — they are tiny
         if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:image/') === false) return url;
-        // For base64: only keep if within budget
+        // For base64: keep if within budget
         if (url.startsWith('data:image/') && url.length > MAX_B64_CHARS) {
-          console.warn(`[PIK] Stripped oversized base64 image (${Math.round(url.length/1024)}KB) from cloud payload for product "${product.name}". Re-upload via Admin to restore.`);
-          return null; // drop it from cloud — local state keeps the full version
+          console.warn(`[PIK] Stripped oversized base64 image (${Math.round(url.length/1024)}KB) from cloud payload for product "${product.name}". Local state keeps full version.`);
+          return null;
         }
         return url;
       })
       .filter(Boolean);
 
+    const fallbackImg = cleanUrls[0] || product.imageUrl || '';
+
     return {
       ...product,
-      imageUrl: cleanUrls[0] || '',
-      imageUrls: cleanUrls
+      imageUrl: fallbackImg,
+      imageUrls: cleanUrls.length > 0 ? cleanUrls : (fallbackImg ? [fallbackImg] : [])
     };
   });
 };
@@ -285,7 +287,23 @@ export const StoreProvider = ({ children }) => {
       // 2. Fetch full products list in 1 single request
       const cloudProds = await cloudGet('products_v3');
       if (cloudProds !== null && Array.isArray(cloudProds)) {
-        setProducts(cloudProds);
+        setProducts(prevProducts => {
+          const merged = cloudProds.map(cp => {
+            const lp = prevProducts.find(p => p.id === cp.id);
+            const cpHasImg = Boolean(cp.imageUrl || (cp.imageUrls && cp.imageUrls.length > 0));
+            const lpHasImg = Boolean(lp && (lp.imageUrl || (lp.imageUrls && lp.imageUrls.length > 0)));
+            if (!cpHasImg && lpHasImg) {
+              return {
+                ...cp,
+                imageUrl: lp.imageUrl,
+                imageUrls: lp.imageUrls || (lp.imageUrl ? [lp.imageUrl] : [])
+              };
+            }
+            return cp;
+          });
+          localStorage.setItem('pik_products', JSON.stringify(merged));
+          return merged;
+        });
       } else if (cloudProds === null && !silent) {
         // First initialization: seed cloud with current products
         const localProds = JSON.parse(localStorage.getItem('pik_products') || 'null') || DEFAULT_PRODUCTS;

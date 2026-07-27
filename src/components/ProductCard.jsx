@@ -10,14 +10,20 @@ export default function ProductCard({ product, onViewDetails }) {
     orderProductViaWhatsapp(product);
   };
 
+  const displayImage = product.imageUrl || (product.imageUrls && product.imageUrls[0]) || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600';
+
   return (
     <div className="product-card animate-fade" onClick={() => onViewDetails(product)}>
       <div className="product-card-image-wrap">
         <img
-          src={product.imageUrl || 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&q=80&w=600'}
+          src={displayImage}
           alt={product.name}
           className="product-card-img"
           loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600';
+          }}
         />
         <span className={`product-card-badge ${!product.inStock ? 'out-of-stock' : ''}`}>
           {product.inStock ? product.category : 'Out of Stock'}

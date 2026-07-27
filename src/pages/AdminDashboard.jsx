@@ -106,8 +106,7 @@ export default function AdminDashboard() {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // 720px max keeps base64 under ~70KB so cloud sync stays stable
-        const MAX_DIM = 720;
+        const MAX_DIM = 800;
         let w = img.width, h = img.height;
         if (w > MAX_DIM || h > MAX_DIM) {
           if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
@@ -119,8 +118,15 @@ export default function AdminDashboard() {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        setProductForm(prev => ({ ...prev, imageUrls: [...prev.imageUrls, dataUrl] }));
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        setProductForm(prev => {
+          const updatedUrls = [...prev.imageUrls, dataUrl];
+          return {
+            ...prev,
+            imageUrl: prev.imageUrl || updatedUrls[0],
+            imageUrls: updatedUrls
+          };
+        });
       };
       img.src = event.target.result;
     };
@@ -140,7 +146,14 @@ export default function AdminDashboard() {
         const url = await uploadImageToGitHub(file, token);
         if (url) {
           // Success — full quality GitHub URL stored (tiny, no compression)
-          setProductForm(prev => ({ ...prev, imageUrls: [...prev.imageUrls, url] }));
+          setProductForm(prev => {
+            const updatedUrls = [...prev.imageUrls, url];
+            return {
+              ...prev,
+              imageUrl: prev.imageUrl || updatedUrls[0],
+              imageUrls: updatedUrls
+            };
+          });
         } else {
           // GitHub upload failed — fall back to local compression
           processFileLocally(file);
@@ -240,11 +253,19 @@ export default function AdminDashboard() {
     e.preventDefault();
     const parsedPrice = parseFloat(productForm.price) || 0;
     
-    // Set first image in imageUrl for backward compatibility
+    const validImageUrls = (productForm.imageUrls || []).filter(Boolean);
+    let primaryImageUrl = validImageUrls[0] || productForm.imageUrl || '';
+
+    // If no image provided, assign default fallback image so product never shows empty beige box
+    if (!primaryImageUrl) {
+      primaryImageUrl = 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600';
+    }
+
     const finalForm = {
       ...productForm,
       price: parsedPrice,
-      imageUrl: productForm.imageUrls[0] || ''
+      imageUrl: primaryImageUrl,
+      imageUrls: validImageUrls.length > 0 ? validImageUrls : [primaryImageUrl]
     };
 
     setIsSaving(true);
