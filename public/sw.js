@@ -1,11 +1,11 @@
-// PIK Bags & Covers Service Worker
-const CACHE_NAME = 'pik-bags-cache-v2';
+const CACHE_NAME = 'pik-bags-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/logo.jpg',
-  '/logo.png',
+  '/app-icon.png',
+  '/app-icon.jpg',
   '/favicon.svg'
 ];
 

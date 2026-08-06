@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, X, ExternalLink, CheckCircle, Share2, PlusSquare } from 'lucide-react';
-import logoImg from '../assets/logo.jpg';
+import appIconImg from '../assets/app-icon.png';
 
 export default function AppInstallModal({ isOpen, onClose, settings }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -51,8 +51,8 @@ export default function AppInstallModal({ isOpen, onClose, settings }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <img 
-              src={logoImg} 
-              alt="PIK Letter P Logo" 
+              src={appIconImg} 
+              alt="PIK App Icon" 
               style={{ width: '44px', height: '44px', borderRadius: '12px', objectFit: 'contain', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }} 
             />
             <div>
