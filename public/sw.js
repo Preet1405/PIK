@@ -1,11 +1,10 @@
-const CACHE_NAME = 'pik-bags-cache-v3';
+const CACHE_NAME = 'pik-bags-cache-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/logo.jpg',
-  '/app-icon.png',
-  '/app-icon.jpg',
+  '/logo.png',
   '/favicon.svg'
 ];
 
