@@ -3,7 +3,13 @@
   "name": "PIK BAGS AND COVERS",
   "icons": [
     {
-      "src": "/logo.jpg",
+      "src": "/logo.png?v=2",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.jpg?v=2",
       "type": "image/jpeg",
       "sizes": "512x512",
       "purpose": "any maskable"

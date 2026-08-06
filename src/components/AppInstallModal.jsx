@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, X, ExternalLink, CheckCircle, Share2, PlusSquare } from 'lucide-react';
+import logoImg from '../assets/logo.jpg';
 
 export default function AppInstallModal({ isOpen, onClose, settings }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -49,9 +50,11 @@ export default function AppInstallModal({ isOpen, onClose, settings }) {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ background: 'var(--accent-gradient, linear-gradient(135deg, #f97316, #ef4444))', width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-              <Smartphone size={22} />
-            </div>
+            <img 
+              src={logoImg} 
+              alt="PIK Letter P Logo" 
+              style={{ width: '44px', height: '44px', borderRadius: '12px', objectFit: 'contain', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }} 
+            />
             <div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700' }}>Install PIK App</h3>
               <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.7 }}>Instant access on Android & iOS</p>
